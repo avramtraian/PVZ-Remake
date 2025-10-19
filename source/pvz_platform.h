@@ -168,7 +168,7 @@ struct game_platform_state
     platform_game_memory*       Memory;
     platform_game_input_state*  Input;
     platform_task_queue*        TaskQueue;
-    struct renderer_texture*    RenderTarget;
+    struct renderer_image*      RenderTarget;
 };
 
 function struct game_state*     Game_Initialize         (platform_game_memory* GameMemory);

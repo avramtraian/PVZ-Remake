@@ -298,7 +298,7 @@ Game_Initialize(platform_game_memory* GameMemory)
 //====================================================================================================================//
 
 internal void
-Game_UpdateCamera(game_state* GameState, renderer_texture* RenderTarget)
+Game_UpdateCamera(game_state* GameState, renderer_image* RenderTarget)
 {
     game_camera* Camera = &GameState->Camera;
     Camera->UnitCountX = 8.0F;
@@ -919,12 +919,13 @@ Game_RenderGardenGrid(game_state* GameState, game_platform_state* PlatformState)
                                           Vec2(PLANT_SUNFLOWER_RENDER_OFFSET_X, PLANT_SUNFLOWER_RENDER_OFFSET_Y);
                     const vec2 MaxPoint = MinPoint + Dimensions;
 
+                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_SUNFLOWER);
                     Renderer_PushPrimitive(&GameState->Renderer,
                                            Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
                                            Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
                                            RenderZOffset, Color4(1.0F),
                                            Vec2(0.0F), Vec2(1.0F),
-                                           &Asset_GetLoaded(&GameState->Assets, GAME_ASSET_ID_PLANT_SUNFLOWER)->Texture.RendererTexture);
+                                           &TextureAsset->Texture.RendererTexture);
                 }
                 break;
 
@@ -935,12 +936,13 @@ Game_RenderGardenGrid(game_state* GameState, game_platform_state* PlatformState)
                                           Vec2(PLANT_SUNFLOWER_RENDER_OFFSET_X, PLANT_SUNFLOWER_RENDER_OFFSET_Y);
                     const vec2 MaxPoint = MinPoint + Dimensions;
 
+                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_PEASHOOTER);
                     Renderer_PushPrimitive(&GameState->Renderer,
                                            Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
                                            Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
                                            RenderZOffset, Color4(1.0F),
                                            Vec2(0.0F), Vec2(1.0F),
-                                           &Asset_GetLoaded(&GameState->Assets, GAME_ASSET_ID_PLANT_PEASHOOTER)->Texture.RendererTexture);
+                                           &TextureAsset->Texture.RendererTexture);
                 }
                 break;
             }
@@ -974,12 +976,13 @@ Game_RenderGardenGrid(game_state* GameState, game_platform_state* PlatformState)
                                           Vec2(ZOMBIE_NORMAL_RENDER_OFFSET_X, ZOMBIE_NORMAL_RENDER_OFFSET_Y);
                     const vec2 MaxPoint = MinPoint + ZombieEntity->Dimensions;
 
+                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_ZOMBIE_NORMAL);
                     Renderer_PushPrimitive(&GameState->Renderer,
                                            Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
                                            Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
                                            RenderZOffset, Color4(1.0F),
                                            Vec2(0.0F), Vec2(1.0F),
-                                           &Asset_GetLoaded(&GameState->Assets, GAME_ASSET_ID_ZOMBIE_NORMAL)->Texture.RendererTexture);
+                                           &TextureAsset->Texture.RendererTexture);
                 }
                 break;
             }
@@ -1009,12 +1012,13 @@ Game_RenderGardenGrid(game_state* GameState, game_platform_state* PlatformState)
                     const vec2 MinPoint = ProjectileEntity->Position - (0.5F * Dimensions);
                     const vec2 MaxPoint = MinPoint + Dimensions;
 
+                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_SUN);
                     Renderer_PushPrimitive(&GameState->Renderer,
                                            Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
                                            Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
                                            PROJECTILES_BASE_Z_OFFSET + SUN_ADDITIONAL_Z_OFFSET, Color4(1.0),
                                            Vec2(0.0F), Vec2(1.0F),
-                                           &Asset_GetLoaded(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_SUN)->Texture.RendererTexture);
+                                           &TextureAsset->Texture.RendererTexture);
                 }
                 break;
 
@@ -1024,12 +1028,13 @@ Game_RenderGardenGrid(game_state* GameState, game_platform_state* PlatformState)
                     const vec2 MinPoint = ProjectileEntity->Position - (0.5F * Vec2(Pea->Radius));
                     const vec2 MaxPoint = MinPoint + Vec2(Pea->Radius);
 
+                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_PEA);
                     Renderer_PushPrimitive(&GameState->Renderer,
                                            Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
                                            Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
                                            PROJECTILES_BASE_Z_OFFSET + PEA_ADDITIONAL_Z_OFFSET, Color4(1.0),
                                            Vec2(0.0F), Vec2(1.0F),
-                                           &Asset_GetLoaded(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_PEA)->Texture.RendererTexture);
+                                           &TextureAsset->Texture.RendererTexture);
                 }
                 break;
             }

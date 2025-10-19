@@ -120,16 +120,14 @@ struct game_assets
     platform_file_handle    AssetFileHandle;
 };
 
-function void           Asset_Initialize        (game_assets* GameAssets, memory_arena* TransientArena,
-                                                 platform_file_handle AssetFileHandle);
+function void           Asset_Initialize    (game_assets* GameAssets, memory_arena* TransientArena,
+                                             platform_file_handle AssetFileHandle);
 
-function asset*         Asset_Get               (game_assets* GameAssets, game_asset_id AssetID);
+function asset_state    Asset_GetState      (game_assets* GameAssets, game_asset_id AssetID);
 
-function asset*         Asset_GetLoaded         (game_assets* GameAssets, game_asset_id AssetID);
+function asset*         Asset_Get           (game_assets* GameAssets, game_asset_id AssetID);
 
-function asset_state    Asset_GetState          (game_assets* GameAssets, game_asset_id AssetID);
+function asset_state    Asset_LoadSync      (game_assets* GameAssets, game_asset_id AssetID);
 
-function asset*         Asset_LoadAssetSync     (game_assets* GameAssets, game_asset_id AssetID);
-
-function asset_state    Asset_LoadAssetAsync    (game_assets* GameAssets, game_asset_id AssetID,
-                                                 platform_task_queue* TaskQueue);
+function asset_state    Asset_LoadAsync     (game_assets* GameAssets, game_asset_id AssetID,
+                                             platform_task_queue* TaskQueue);

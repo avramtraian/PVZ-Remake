@@ -419,8 +419,8 @@ Win32_GetPerformanceCounterFrequency()
 
 struct win32_offscreen_bitmap
 {
-    renderer_texture    Texture;
-    BITMAPINFO          Info;
+    renderer_image  Image;
+    BITMAPINFO      Info;
 };
 
 internal void
@@ -442,9 +442,9 @@ Win32_GetWindowClientSize(HWND WindowHandle, u32* OutSizeX, u32* OutSizeY)
 internal void
 Win32_ReallocateOffscreenBitmap(win32_offscreen_bitmap* Bitmap, HWND WindowHandle)
 {
-    if (Bitmap->Texture.PixelBuffer)
+    if (Bitmap->Image.PixelBuffer)
     {
-        VirtualFree(Bitmap->Texture.PixelBuffer, 0, MEM_RELEASE);
+        VirtualFree(Bitmap->Image.PixelBuffer, 0, MEM_RELEASE);
     }
     ZERO_STRUCT_POINTER(Bitmap);
 
@@ -454,18 +454,19 @@ Win32_ReallocateOffscreenBitmap(win32_offscreen_bitmap* Bitmap, HWND WindowHandl
 
     if (WindowSizeX > 0 && WindowSizeY > 0)
     {
-        const memory_size OFFSCREEN_BITMAP_BPP = 4;
-        const memory_size PixelBufferSize = (memory_size)WindowSizeX * (memory_size)WindowSizeY * OFFSCREEN_BITMAP_BPP;
-        Bitmap->Texture.PixelBuffer = VirtualAlloc(NULL, PixelBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-        Bitmap->Texture.SizeX = WindowSizeX;
-        Bitmap->Texture.SizeY = WindowSizeY;
-        Bitmap->Texture.BytesPerPixel = OFFSCREEN_BITMAP_BPP;
+        Bitmap->Image.SizeX = WindowSizeX;
+        Bitmap->Image.SizeY = WindowSizeY;
+        Bitmap->Image.Format = RENDERER_IMAGE_FORMAT_B8G8R8A8;
+        const memory_size PixelBufferByteCount = Image_GetPixelBufferByteCount(Bitmap->Image.SizeX,
+                                                                               Bitmap->Image.SizeY,
+                                                                               Bitmap->Image.Format);
+        Bitmap->Image.PixelBuffer = VirtualAlloc(NULL, PixelBufferByteCount, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
         Bitmap->Info.bmiHeader.biSize = sizeof(Bitmap->Info.bmiHeader);
-        Bitmap->Info.bmiHeader.biWidth = Bitmap->Texture.SizeX;
-        Bitmap->Info.bmiHeader.biHeight = Bitmap->Texture.SizeY;
+        Bitmap->Info.bmiHeader.biWidth = Bitmap->Image.SizeX;
+        Bitmap->Info.bmiHeader.biHeight = Bitmap->Image.SizeY;
         Bitmap->Info.bmiHeader.biPlanes = 1;
-        Bitmap->Info.bmiHeader.biBitCount = 8 * Bitmap->Texture.BytesPerPixel;
+        Bitmap->Info.bmiHeader.biBitCount = 8 * Image_GetBytesPerPixelForFormat(Bitmap->Image.Format);
     }
 }
 
@@ -477,8 +478,8 @@ Win32_PresentOffscreenBitmap(const win32_offscreen_bitmap* Bitmap, HWND WindowHa
     Win32_GetWindowClientSize(WindowHandle, &WindowSizeX, &WindowSizeY);
 
     StretchDIBits(WindowDeviceContext, 0, 0, WindowSizeX, WindowSizeY,
-                  0, 0, Bitmap->Texture.SizeX, Bitmap->Texture.SizeY,
-                  Bitmap->Texture.PixelBuffer, &Bitmap->Info,
+                  0, 0, Bitmap->Image.SizeX, Bitmap->Image.SizeY,
+                  Bitmap->Image.PixelBuffer, &Bitmap->Info,
                   DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -684,7 +685,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PreviousInstance, LPSTR CommandLine, INT S
             u32 WindowSizeX;
             u32 WindowSizeY;
             Win32_GetWindowClientSize(WindowHandle, &WindowSizeX, &WindowSizeY);
-            if (OffscreenBitmap.Texture.SizeX != WindowSizeX || OffscreenBitmap.Texture.SizeY != WindowSizeY)
+            if (OffscreenBitmap.Image.SizeX != WindowSizeX || OffscreenBitmap.Image.SizeY != WindowSizeY)
             {
                 if (WindowSizeX > 0 && WindowSizeY > 0)
                 {
@@ -702,7 +703,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PreviousInstance, LPSTR CommandLine, INT S
             PlatformState.Memory = &GameMemory;
             PlatformState.Input = &GameInputState;
             PlatformState.TaskQueue = &TaskQueue;
-            PlatformState.RenderTarget = &OffscreenBitmap.Texture;
+            PlatformState.RenderTarget = &OffscreenBitmap.Image;
             Game_UpdateAndRender(GameState, &PlatformState, LastFrameDeltaTime);
 
             // NOTE(Traian): Present the offscreen bitmap to the window back-buffer.

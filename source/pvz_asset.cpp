@@ -11,18 +11,28 @@ internal void
 Asset_ReadTextureFromStream(asset* Asset, memory_stream* AssetStream, memory_arena* Arena)
 {
     ZERO_STRUCT_POINTER(Asset);
+    Asset->Type = ASSET_TYPE_TEXTURE;
 
     const asset_header_texture* TextureHeader = CONSUME(AssetStream, asset_header_texture);
+    renderer_image Image = {};
+    Image.SizeX = TextureHeader->SizeX;
+    Image.SizeY = TextureHeader->SizeY;
+    // TODO(Traian): Read the texture format from the asset file!
+    Image.Format = RENDERER_IMAGE_FORMAT_B8G8R8A8;
+
     const memory_size PixelBufferByteCount = (memory_size)TextureHeader->SizeX *
                                              (memory_size)TextureHeader->SizeY *
                                              TextureHeader->BytesPerPixel;
-    void* PixelBuffer = MemoryStream_Consume(AssetStream, PixelBufferByteCount);
-    
-    Asset->Type = ASSET_TYPE_TEXTURE;
-    Asset->Texture.RendererTexture.PixelBuffer = PixelBuffer;
-    Asset->Texture.RendererTexture.SizeX = TextureHeader->SizeX;
-    Asset->Texture.RendererTexture.SizeY = TextureHeader->SizeY;
-    Asset->Texture.RendererTexture.BytesPerPixel = TextureHeader->BytesPerPixel;
+    if (TextureHeader->BytesPerPixel == 4)
+    {
+        Image.PixelBuffer = CONSUME_ARRAY(AssetStream, u32, PixelBufferByteCount / sizeof(u32));
+    }
+    else
+    {
+        PANIC("Invalid texture BPP read from the asset file!");
+    }
+
+    Texture_Create(&Asset->Texture.RendererTexture, Arena, &Image, 6);
 }
 
 internal void
@@ -134,34 +144,32 @@ Asset_Initialize(game_assets* GameAssets, memory_arena* TransientArena, platform
     MemoryArena_EndTemporary(&ReadAssetPackArena);
 }
 
-function asset*
-Asset_Get(game_assets* GameAssets, game_asset_id AssetID)
+function asset_state
+Asset_GetState(game_assets* GameAssets, game_asset_id AssetID)
 {
     ASSERT(AssetID != GAME_ASSET_ID_NONE);
     ASSERT(AssetID < GAME_ASSET_ID_MAX_COUNT);
     asset* Asset = &GameAssets->Assets[AssetID];
-    return Asset;
-}
-
-function asset*
-Asset_GetLoaded(game_assets* GameAssets, game_asset_id AssetID)
-{
-    asset* Asset = Asset_LoadAssetSync(GameAssets, AssetID);
-    return Asset;
-}
-
-function asset_state
-Asset_GetState(game_assets* GameAssets, game_asset_id AssetID)
-{
-    asset* Asset = Asset_Get(GameAssets, AssetID);
     const asset_state State = Asset->State;
     return State; 
 }
 
 function asset*
-Asset_LoadAssetSync(game_assets* GameAssets, game_asset_id AssetID)
+Asset_Get(game_assets* GameAssets, game_asset_id AssetID)
 {
-    asset* Asset = Asset_Get(GameAssets, AssetID);
+    Asset_LoadSync(GameAssets, AssetID);
+    asset* Asset = &GameAssets->Assets[AssetID];
+    return Asset;
+}
+
+function asset_state
+Asset_LoadSync(game_assets* GameAssets, game_asset_id AssetID)
+{
+    ASSERT(AssetID != GAME_ASSET_ID_NONE);
+    ASSERT(AssetID < GAME_ASSET_ID_MAX_COUNT);
+    asset* Asset = &GameAssets->Assets[AssetID];
+    const asset_state InitialAssetState = Asset->State;
+
     if (Asset->State == ASSET_STATE_UNLOADED)
     {
         //
@@ -175,9 +183,12 @@ Asset_LoadAssetSync(game_assets* GameAssets, game_asset_id AssetID)
                                                                               GameAssets->TransientArena);
         if (ReadAssetFileResult.IsValid)
         {
+            // NOTE(Traian): Emulate a single asset file stream that contains the entire asset file data at once.
+            // This ensures that writing and reading from the asset file are equivalent from an alignment perspective.
             memory_stream AssetFileStream = {};
-            AssetFileStream.MemoryBlock = ReadAssetFileResult.ReadData;
-            AssetFileStream.ByteCount = ReadAssetFileResult.ReadByteCount;
+            AssetFileStream.MemoryBlock = (u8*)ReadAssetFileResult.ReadData - Asset->AssetFileByteOffset;
+            AssetFileStream.ByteCount = Asset->AssetFileByteOffset + ReadAssetFileResult.ReadByteCount;
+            AssetFileStream.ByteOffset = Asset->AssetFileByteOffset;
 
             switch (Asset->Type)
             {
@@ -193,9 +204,13 @@ Asset_LoadAssetSync(game_assets* GameAssets, game_asset_id AssetID)
                 break;
             }
 
-            ASSERT(AssetFileStream.ByteOffset == AssetFileStream.ByteCount);
-            Asset->State = ASSET_STATE_READY;
+            if (AssetFileStream.ByteOffset != AssetFileStream.ByteCount)
+            {
+                PANIC("Loading an asset from the asset file didn't consume the entire memory block!");
+            }
         }
+
+        Asset->State = ASSET_STATE_READY;
     }
     else if (Asset->State == ASSET_STATE_LOADING)
     {
@@ -204,11 +219,11 @@ Asset_LoadAssetSync(game_assets* GameAssets, game_asset_id AssetID)
         while (Asset->State != ASSET_STATE_READY) {}
     }
 
-    return Asset;
+    return InitialAssetState;
 }
 
 function asset_state
-Asset_LoadAssetAsync(game_assets* GameAssets, game_asset_id AssetID, platform_task_queue* TaskQueue)
+Asset_LoadAsync(game_assets* GameAssets, game_asset_id AssetID, platform_task_queue* TaskQueue)
 {
     return ASSET_STATE_UNLOADED;
 }

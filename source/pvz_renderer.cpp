@@ -4,52 +4,280 @@
 #include "pvz_renderer.h"
 
 //====================================================================================================================//
-//------------------------------------------------------ TEXTURE -----------------------------------------------------//
+//------------------------------------------------------- IMAGE ------------------------------------------------------//
 //====================================================================================================================//
 
-function void
-Texture_AllocateFromArena(renderer_texture* Texture, memory_arena* Arena,
-                          memory_size BytesPerPixel, u32 SizeX, u32 SizeY)
+function memory_size
+Image_GetBytesPerPixelForFormat(renderer_image_format Format)
 {
-    ZERO_STRUCT_POINTER(Texture);
-    if (SizeX > 0 && SizeY > 0)
+    memory_size Result = 0;
+    switch (Format)
     {
-        ASSERT(BytesPerPixel > 0);
-        const memory_size PixelBufferSize = (memory_size)SizeX * (memory_size)SizeY * BytesPerPixel;
-        Texture->PixelBuffer = MemoryArena_Allocate(Arena, PixelBufferSize, sizeof(void*));
-        Texture->BytesPerPixel = BytesPerPixel;
-        Texture->SizeX = SizeX;
-        Texture->SizeY = SizeY;
+        case RENDERER_IMAGE_FORMAT_A8:          Result = 1; break;
+        case RENDERER_IMAGE_FORMAT_B8G8R8A8:    Result = 4; break;
     }
+    return Result;
+}
+
+function memory_size
+Image_GetPixelBufferByteCount(u32 SizeX, u32 SizeY, renderer_image_format Format)
+{
+    const memory_size Result = (memory_size)SizeX *
+                               (memory_size)SizeY *
+                               Image_GetBytesPerPixelForFormat(Format);
+    return Result;
+}
+
+function void
+Image_AllocateFromArena(renderer_image* Image, memory_arena* Arena,
+                        renderer_image_format Format, u32 SizeX, u32 SizeY)
+{
+    ASSERT(SizeX > 0 && SizeY > 0);
+    ASSERT(Format != RENDERER_IMAGE_FORMAT_UNKNOWN);
+
+    // NOTE(Traian): Initialize the image fields.
+    ZERO_STRUCT_POINTER(Image);
+    Image->Format = Format;
+    Image->SizeX = SizeX;
+    Image->SizeY = SizeY;
+
+    // NOTE(Traian): Allocate memory for the pixel buffer.
+    const memory_size PixelBufferByteCount = (memory_size)SizeX *
+                                             (memory_size)SizeY *
+                                             Image_GetBytesPerPixelForFormat(Format);
+    Image->PixelBuffer = MemoryArena_Allocate(Arena, PixelBufferByteCount, sizeof(void*));
 }
 
 function void*
-Texture_GetPixelAddress(renderer_texture* Texture, u32 PixelIndexX, u32 PixelIndexY)
+Image_GetPixelAddress(renderer_image* Image, u32 PixelIndexX, u32 PixelIndexY)
 {
-    if (PixelIndexX < Texture->SizeX && PixelIndexY < Texture->SizeY)
+    const memory_size BytesPerPixel = Image_GetBytesPerPixelForFormat(Image->Format);
+    void* PixelAddress = NULL;
+    if (PixelIndexX < Image->SizeX && PixelIndexY < Image->SizeY)
     {
-        const usize PixelIndex = ((usize)PixelIndexY * (usize)Texture->SizeX) + (usize)PixelIndexX;
-        void* PixelAddress = (u8*)Texture->PixelBuffer + (PixelIndex * Texture->BytesPerPixel);
-        return PixelAddress;
+        const usize PixelIndex = ((usize)PixelIndexY * (usize)Image->SizeX) + (usize)PixelIndexX;
+        PixelAddress = (u8*)Image->PixelBuffer + (PixelIndex * BytesPerPixel);
     }
-    else
-    {
-        return NULL;
-    }
+    return PixelAddress;
 }
 
 function const void*
-Texture_GetPixelAddress(const renderer_texture* Texture, u32 PixelIndexX, u32 PixelIndexY)
+Image_GetPixelAddress(const renderer_image* Image, u32 PixelIndexX, u32 PixelIndexY)
 {
-    if (PixelIndexX < Texture->SizeX && PixelIndexX < Texture->SizeY)
+    const memory_size BytesPerPixel = Image_GetBytesPerPixelForFormat(Image->Format);
+    const void* PixelAddress = NULL;
+    if (PixelIndexX < Image->SizeX && PixelIndexY < Image->SizeY)
     {
-        const usize PixelIndex = ((usize)PixelIndexY * (usize)Texture->SizeX) + (usize)PixelIndexX;
-        const void* PixelAddress = (const u8*)Texture->PixelBuffer + (PixelIndex * Texture->BytesPerPixel);
-        return PixelAddress;
+        const usize PixelIndex = ((usize)PixelIndexY * (usize)Image->SizeX) + (usize)PixelIndexX;
+        PixelAddress = (const u8*)Image->PixelBuffer + (PixelIndex * BytesPerPixel);
+    }
+    return PixelAddress;
+}
+
+function f32
+Image_SampleBilinearA8(const renderer_image* Image, vec2 UV)
+{
+    ASSERT(Image->Format == RENDERER_IMAGE_FORMAT_A8);
+    ASSERT(Image->SizeX > 0 && Image->SizeY > 0);
+    ASSERT(0.0F <= UV.X && UV.X <= 1.0F && 0.0F <= UV.Y && UV.Y <= 1.0F);
+
+    // NOTE(Traian): Bottom-left pixel.
+    const u32 Tex1X = (u32)(UV.X * (f32)(Image->SizeX - 1));
+    const u32 Tex1Y = (u32)(UV.Y * (f32)(Image->SizeY - 1));
+    // NOTE(Traian): Bottom-right pixel.
+    const u32 Tex2X = Tex1X + 1;
+    const u32 Tex2Y = Tex1Y;
+    // NOTE(Traian): Top-left pixel.
+    const u32 Tex3X = Tex1X;
+    const u32 Tex3Y = Tex1Y + 1;
+    // NOTE(Traian): Top-right pixel.
+    const u32 Tex4X = Tex1X + 1;
+    const u32 Tex4Y = Tex1Y + 1;
+
+    const u8* Pixel1Address = (const u8*)Image_GetPixelAddress(Image, Tex1X, Tex1Y);
+    const u8* Pixel2Address = (const u8*)Image_GetPixelAddress(Image, Tex2X, Tex2Y);
+    const u8* Pixel3Address = (const u8*)Image_GetPixelAddress(Image, Tex3X, Tex3Y);
+    const u8* Pixel4Address = (const u8*)Image_GetPixelAddress(Image, Tex4X, Tex4Y);
+
+    const f32 Sample1 = (1.0F / 255.0F) * (f32)(*(Pixel1Address));
+    const f32 Sample2 = (1.0F / 255.0F) * (f32)(*(Pixel2Address ? Pixel2Address : Pixel1Address));
+    const f32 Sample3 = (1.0F / 255.0F) * (f32)(*(Pixel3Address ? Pixel3Address : Pixel1Address));
+    const f32 Sample4 = (1.0F / 255.0F) * (f32)(*(Pixel4Address ? Pixel4Address : Pixel1Address));
+
+    const f32 TX = UV.X - ((f32)Tex1X / (f32)Image->SizeX);
+    const f32 TY = UV.Y - ((f32)Tex1Y / (f32)Image->SizeY);
+
+    const f32 InterpolatedBottom = Math_Lerp(Sample1, Sample2, TX);
+    const f32 InterpolatedTop    = Math_Lerp(Sample3, Sample4, TX);
+    const f32 Interpolated       = Math_Lerp(InterpolatedBottom, InterpolatedTop, TY);
+
+    return Interpolated;
+}
+
+function color4
+Image_SampleBilinearB8G8R8A8(const renderer_image* Image, vec2 UV)
+{
+    ASSERT(Image->Format == RENDERER_IMAGE_FORMAT_B8G8R8A8);
+    ASSERT(Image->SizeX > 0 && Image->SizeY > 0);
+    ASSERT(0.0F <= UV.X && UV.X <= 1.0F && 0.0F <= UV.Y && UV.Y <= 1.0F);
+
+    // NOTE(Traian): Bottom-left pixel.
+    const u32 Tex1X = (u32)(UV.X * (f32)(Image->SizeX - 1));
+    const u32 Tex1Y = (u32)(UV.Y * (f32)(Image->SizeY - 1));
+    // NOTE(Traian): Bottom-right pixel.
+    const u32 Tex2X = Tex1X + 1;
+    const u32 Tex2Y = Tex1Y;
+    // NOTE(Traian): Top-left pixel.
+    const u32 Tex3X = Tex1X;
+    const u32 Tex3Y = Tex1Y + 1;
+    // NOTE(Traian): Top-right pixel.
+    const u32 Tex4X = Tex1X + 1;
+    const u32 Tex4Y = Tex1Y + 1;
+
+    const u32* Pixel1Address = (const u32*)Image_GetPixelAddress(Image, Tex1X, Tex1Y);
+    const u32* Pixel2Address = (const u32*)Image_GetPixelAddress(Image, Tex2X, Tex2Y);
+    const u32* Pixel3Address = (const u32*)Image_GetPixelAddress(Image, Tex3X, Tex3Y);
+    const u32* Pixel4Address = (const u32*)Image_GetPixelAddress(Image, Tex4X, Tex4Y);
+
+    const color4 Sample1 = Color4_FromLinear(LinearColor_UnpackFromBGRA(*Pixel1Address));
+    const color4 Sample2 = Color4_FromLinear(LinearColor_UnpackFromBGRA(Pixel2Address ? *Pixel2Address : *Pixel1Address));
+    const color4 Sample3 = Color4_FromLinear(LinearColor_UnpackFromBGRA(Pixel3Address ? *Pixel3Address : *Pixel1Address));
+    const color4 Sample4 = Color4_FromLinear(LinearColor_UnpackFromBGRA(Pixel4Address ? *Pixel4Address : *Pixel1Address));
+
+    const f32 TX = UV.X - ((f32)Tex1X / (f32)Image->SizeX);
+    const f32 TY = UV.Y - ((f32)Tex1Y / (f32)Image->SizeY);
+
+    const color4 InterpolatedBottom = Math_LerpColor4(Sample1, Sample2, TX);
+    const color4 InterpolatedTop    = Math_LerpColor4(Sample3, Sample4, TX);
+    const color4 Interpolated       = Math_LerpColor4(InterpolatedBottom, InterpolatedTop, TY);
+
+    return Interpolated;
+}
+
+//====================================================================================================================//
+//------------------------------------------------------ TEXTURE -----------------------------------------------------//
+//====================================================================================================================//
+
+internal b8
+Texture_DownsampleByFactorOf2(renderer_image* DstImage, const renderer_image* SrcImage, memory_arena* Arena)
+{
+    const u32 DstSizeX = SrcImage->SizeX / 2;
+    const u32 DstSizeY = SrcImage->SizeY / 2;
+    if (DstSizeX > 0 && DstSizeY > 0)
+    {
+        ZERO_STRUCT_POINTER(DstImage);
+        Image_AllocateFromArena(DstImage, Arena, SrcImage->Format, DstSizeX, DstSizeY);
+
+        if (DstImage->Format == RENDERER_IMAGE_FORMAT_A8)
+        {
+            for (u32 DstPixelY = 0; DstPixelY < DstImage->SizeY; ++DstPixelY)
+            {
+                for (u32 DstPixelX = 0; DstPixelX < DstImage->SizeX; ++DstPixelX)
+                {
+                    const u32 SrcPixel00X = (2 * DstPixelX) + 0;
+                    const u32 SrcPixel00Y = (2 * DstPixelY) + 0;
+
+                    const u32 SrcPixel01X = (2 * DstPixelX) + 1;
+                    const u32 SrcPixel01Y = (2 * DstPixelY) + 0;
+                    
+                    const u32 SrcPixel10X = (2 * DstPixelX) + 0;
+                    const u32 SrcPixel10Y = (2 * DstPixelY) + 1;
+                    
+                    const u32 SrcPixel11X = (2 * DstPixelX) + 1;
+                    const u32 SrcPixel11Y = (2 * DstPixelY) + 1;
+
+                    const f32 Sample00 = (f32)(*(const u8*)Image_GetPixelAddress(SrcImage, SrcPixel00X, SrcPixel00Y));
+                    const f32 Sample01 = (f32)(*(const u8*)Image_GetPixelAddress(SrcImage, SrcPixel01X, SrcPixel01Y));
+                    const f32 Sample10 = (f32)(*(const u8*)Image_GetPixelAddress(SrcImage, SrcPixel10X, SrcPixel10Y));
+                    const f32 Sample11 = (f32)(*(const u8*)Image_GetPixelAddress(SrcImage, SrcPixel11X, SrcPixel11Y));
+
+                    const f32 Interpolated = 0.25F * (Sample00 + Sample01 + Sample10 + Sample11);
+                    const u8 DstPixelValue = (u8)(Interpolated);
+                    *(u8*)Image_GetPixelAddress(DstImage, DstPixelX, DstPixelY) = DstPixelValue;
+                }
+            }
+        }
+        else if (DstImage->Format == RENDERER_IMAGE_FORMAT_B8G8R8A8)
+        {
+            for (u32 DstPixelY = 0; DstPixelY < DstImage->SizeY; ++DstPixelY)
+            {
+                for (u32 DstPixelX = 0; DstPixelX < DstImage->SizeX; ++DstPixelX)
+                {
+                    const u32 SrcPixel00X = (2 * DstPixelX) + 0;
+                    const u32 SrcPixel00Y = (2 * DstPixelY) + 0;
+
+                    const u32 SrcPixel01X = (2 * DstPixelX) + 1;
+                    const u32 SrcPixel01Y = (2 * DstPixelY) + 0;
+                    
+                    const u32 SrcPixel10X = (2 * DstPixelX) + 0;
+                    const u32 SrcPixel10Y = (2 * DstPixelY) + 1;
+                    
+                    const u32 SrcPixel11X = (2 * DstPixelX) + 1;
+                    const u32 SrcPixel11Y = (2 * DstPixelY) + 1;
+
+                    const u32 PackedSample00 = *(const u32*)Image_GetPixelAddress(SrcImage, SrcPixel00X, SrcPixel00Y);
+                    const u32 PackedSample01 = *(const u32*)Image_GetPixelAddress(SrcImage, SrcPixel01X, SrcPixel01Y);
+                    const u32 PackedSample10 = *(const u32*)Image_GetPixelAddress(SrcImage, SrcPixel10X, SrcPixel10Y);
+                    const u32 PackedSample11 = *(const u32*)Image_GetPixelAddress(SrcImage, SrcPixel11X, SrcPixel11Y);
+
+                    const color4 Sample00 = Color4_FromLinear(LinearColor_UnpackFromBGRA(PackedSample00));
+                    const color4 Sample01 = Color4_FromLinear(LinearColor_UnpackFromBGRA(PackedSample01));
+                    const color4 Sample10 = Color4_FromLinear(LinearColor_UnpackFromBGRA(PackedSample10));
+                    const color4 Sample11 = Color4_FromLinear(LinearColor_UnpackFromBGRA(PackedSample11));
+
+                    color4 Interpolated;
+                    Interpolated.R = 0.25 * (Sample00.R + Sample01.R + Sample10.R + Sample11.R);
+                    Interpolated.G = 0.25 * (Sample00.G + Sample01.G + Sample10.G + Sample11.G);
+                    Interpolated.B = 0.25 * (Sample00.B + Sample01.B + Sample10.B + Sample11.B);
+                    Interpolated.A = 0.25 * (Sample00.A + Sample01.A + Sample10.A + Sample11.A);
+
+                    const u32 DstPixelValue = LinearColor_PackToBGRA(Color4_ToLinear(Interpolated));
+                    *(u32*)Image_GetPixelAddress(DstImage, DstPixelX, DstPixelY) = DstPixelValue;
+                }
+            }
+        }
+        else
+        {
+            PANIC("Invalid texture format passed to 'Texture_DownsampleByFactorOf2'!");
+        }
+
+        return true;
     }
     else
     {
-        return NULL;
+        return false;
+    }
+}
+
+function void
+Texture_Create(renderer_texture* Texture, memory_arena* Arena,
+               const renderer_image* SourceImage, u32 MaxMipCount)
+{
+    ASSERT(MaxMipCount > 0);
+
+    ZERO_STRUCT_POINTER(Texture);
+    Texture->SizeX = SourceImage->SizeX;
+    Texture->SizeY = SourceImage->SizeY;
+    Texture->Format = SourceImage->Format;
+    Texture->MaxMipCount = MaxMipCount;
+    Texture->Mips = PUSH_ARRAY(Arena, renderer_image, Texture->MaxMipCount);
+
+    Texture->MipCount = 1;
+    Texture->Mips[0] = *SourceImage;
+
+    for (u32 MipLevel = 1; MipLevel < Texture->MaxMipCount; ++MipLevel)
+    {
+        renderer_image DstMipImage = {};
+        renderer_image SrcMipImage = Texture->Mips[MipLevel - 1];
+
+        if (Texture_DownsampleByFactorOf2(&DstMipImage, &SrcMipImage, Arena))
+        {
+            Texture->Mips[Texture->MipCount++] = DstMipImage;
+        }
+        else
+        {
+            break;
+        }
     }
 }
 
@@ -289,7 +517,7 @@ Renderer_SortPrimitiveBuffer(renderer_primitive* Primitives, u32 PrimitiveCount)
     }
 }
 
-struct renderer_quad_rasterization_area
+struct renderer_rasterization_area
 {
     u32 PixelOffsetX;
     u32 PixelOffsetY;
@@ -297,9 +525,12 @@ struct renderer_quad_rasterization_area
     u32 PixelCountY;
 };
 
-internal renderer_quad_rasterization_area
-Renderer_GetQuadRasterizationArea(f32 ViewportSizeX, f32 ViewportSizeY, rect2D QuadRegion)
+internal renderer_rasterization_area
+Renderer_GetRasterizationArea(f32 ViewportSizeX, f32 ViewportSizeY, rect2D QuadRegion)
 {
+    ASSERT(ViewportSizeX >= 0.0F && ViewportSizeY >= 0.0F);
+    ASSERT(QuadRegion.Min.X >= 0.0F && QuadRegion.Min.Y >= 0.0F && !Rect2D_IsDegenerated(QuadRegion));
+
     vec2 MinSamplePoint;
     MinSamplePoint.X = QuadRegion.Min.X * ViewportSizeX;
     MinSamplePoint.Y = QuadRegion.Min.Y * ViewportSizeY;
@@ -321,7 +552,7 @@ Renderer_GetQuadRasterizationArea(f32 ViewportSizeX, f32 ViewportSizeY, rect2D Q
         --MaxSampleIndexY;
     }
 
-    renderer_quad_rasterization_area RasterizationArea = {};
+    renderer_rasterization_area RasterizationArea = {};
     RasterizationArea.PixelOffsetX = MinSampleIndexX;
     RasterizationArea.PixelOffsetY = MinSampleIndexY;
     RasterizationArea.PixelCountX = MaxSampleIndexX - MinSampleIndexX + 1;
@@ -330,29 +561,29 @@ Renderer_GetQuadRasterizationArea(f32 ViewportSizeX, f32 ViewportSizeY, rect2D Q
 }
 
 internal void
-Renderer_DrawFilledPrimitive(renderer* Renderer, renderer_texture* RenderTarget, renderer_cluster* Cluster,
+Renderer_DrawFilledPrimitive(renderer* Renderer, renderer_image* RenderTarget, renderer_cluster* Cluster,
                              u32 PrimitiveIndex, rect2D ClusterDrawRegion)
 {
     const renderer_primitive* Primitive = Cluster->Primitives + PrimitiveIndex;
     const rect2D PrimitiveRegion = Rect2D_Intersect({ Primitive->MinPoint, Primitive->MaxPoint }, ClusterDrawRegion);
+    const u32 PackedPrimitiveColor = LinearColor_PackToBGRA(Color4_ToLinear(Primitive->Color));
 
-    const u32 BasePixelAddressX = PrimitiveRegion.Min.X * Renderer->ViewportSizeX;
-    const u32 BasePixelAddressY = PrimitiveRegion.Min.Y * Renderer->ViewportSizeY;
-    // NOTE(Traian): In order to avoid off-by-one errors in the number of pixels to draw, it is important to calculate
-    // these counts by subtracting one integer from another, instead of calculating the size of the 'PrimitiveRegion'
-    // rectangle (which is in the [0,1] range) and multiplying the result by the size of the viewport!
-    const u32 PrimitivePixelCountX = (u32)(PrimitiveRegion.Max.X * Renderer->ViewportSizeX) - BasePixelAddressX;
-    const u32 PrimitivePixelCountY = (u32)(PrimitiveRegion.Max.Y * Renderer->ViewportSizeY) - BasePixelAddressY;
+    renderer_rasterization_area RasterizationArea = Renderer_GetRasterizationArea(RenderTarget->SizeX,
+                                                                                  RenderTarget->SizeY,
+                                                                                  PrimitiveRegion);
 
-    if (RenderTarget->BytesPerPixel == 4)
+    if (RenderTarget->Format == RENDERER_IMAGE_FORMAT_B8G8R8A8)
     {
-        u32* CurrentRowAddress = (u32*)Texture_GetPixelAddress(RenderTarget, BasePixelAddressX, BasePixelAddressY);
-        for (u32 PixelIndexY = 0; PixelIndexY < PrimitivePixelCountY; ++PixelIndexY)
+        u32* CurrentRowAddress = (u32*)Image_GetPixelAddress(RenderTarget,
+                                                             RasterizationArea.PixelOffsetX,
+                                                             RasterizationArea.PixelOffsetY);
+
+        for (u32 PixelIndexY = 0; PixelIndexY < RasterizationArea.PixelCountY; ++PixelIndexY)
         {
             u32* CurrentPixelAddress = CurrentRowAddress;
-            for (u32 PixelIndexX = 0; PixelIndexX < PrimitivePixelCountX; ++PixelIndexX)
+            for (u32 PixelIndexX = 0; PixelIndexX < RasterizationArea.PixelCountX; ++PixelIndexX)
             {
-                *CurrentPixelAddress = LinearColor_PackToBGRA(Color4_ToLinear(Primitive->Color));
+                *CurrentPixelAddress = PackedPrimitiveColor;
                 ++CurrentPixelAddress;
             }
             CurrentRowAddress += RenderTarget->SizeX;
@@ -361,96 +592,175 @@ Renderer_DrawFilledPrimitive(renderer* Renderer, renderer_texture* RenderTarget,
     else
     {
         // TODO(Traian): Eventually support more texture formats?
-        PANIC("Texture with non supported bytes-per-pixel was used as render target!");
+        PANIC("Image with non supported fomat was used as render target!");
     }
 }
 
-internal color4
-Renderer_SampleTextureBPP4(const renderer_texture* Texture, vec2 UV)
+struct renderer_find_mip_levels_info
 {
-    // NOTE(Traian): Bottom-left pixel.
-    const u32 Tex1X = (u32)(UV.X * (f32)(Texture->SizeX - 1));
-    const u32 Tex1Y = (u32)(UV.Y * (f32)(Texture->SizeY - 1));
-    // NOTE(Traian): Bottom-right pixel.
-    const u32 Tex2X = Tex1X + 1;
-    const u32 Tex2Y = Tex1Y;
-    // NOTE(Traian): Top-left pixel.
-    const u32 Tex3X = Tex1X;
-    const u32 Tex3Y = Tex1Y + 1;
-    // NOTE(Traian): Top-right pixel.
-    const u32 Tex4X = Tex1X + 1;
-    const u32 Tex4Y = Tex1Y + 1;
+    f32 NDCPrimitiveSizeX;
+    f32 NDCPrimitiveSizeY;
+    f32 ViewportSizeX;
+    f32 ViewportSizeY;
+    f32 UVDeltaX;
+    f32 UVDeltaY;
+};
 
-    const u32* Pixel1Address = (const u32*)Texture_GetPixelAddress(Texture, Tex1X, Tex1Y);
-    const u32* Pixel2Address = (const u32*)Texture_GetPixelAddress(Texture, Tex2X, Tex2Y);
-    const u32* Pixel3Address = (const u32*)Texture_GetPixelAddress(Texture, Tex3X, Tex3Y);
-    const u32* Pixel4Address = (const u32*)Texture_GetPixelAddress(Texture, Tex4X, Tex4Y);
+struct renderer_find_mip_levels_result
+{
+    b8  BlendBetweenMips;
+    u32 MipLevelA;
+    u32 MipLevelB;
+    f32 InterpolationFactorAB;
+};
 
-    const color4 Sample1 = Color4_FromLinear(LinearColor_UnpackFromBGRA(*Pixel1Address));
-    const color4 Sample2 = Color4_FromLinear(LinearColor_UnpackFromBGRA(Pixel2Address ? *Pixel2Address : *Pixel1Address));
-    const color4 Sample3 = Color4_FromLinear(LinearColor_UnpackFromBGRA(Pixel3Address ? *Pixel3Address : *Pixel1Address));
-    const color4 Sample4 = Color4_FromLinear(LinearColor_UnpackFromBGRA(Pixel4Address ? *Pixel4Address : *Pixel1Address));
+internal inline renderer_find_mip_levels_result
+Renderer_FindMipLevels(const renderer_texture* Texture, renderer_find_mip_levels_info FindInfo)
+{
+    const u32 PrimitivePixelCountX = (FindInfo.NDCPrimitiveSizeX * FindInfo.ViewportSizeX) + 1;
+    const u32 PrimitivePixelCountY = (FindInfo.NDCPrimitiveSizeY * FindInfo.ViewportSizeY) + 1;
+    const f32 UVDeltaX = FindInfo.UVDeltaX;
+    const f32 UVDeltaY = FindInfo.UVDeltaY;
 
-    const f32 TX = UV.X - ((f32)Tex1X / (f32)Texture->SizeX);
-    const f32 TY = UV.Y - ((f32)Tex1Y / (f32)Texture->SizeY);
+    u32 MipLevel;
+    b8 FoundMipLevel = false;
 
-    const color4 InterpolatedBottom = Math_LerpColor4(Sample1, Sample2, TX);
-    const color4 InterpolatedTop    = Math_LerpColor4(Sample3, Sample4, TX);
-    const color4 Interpolated       = Math_LerpColor4(InterpolatedBottom, InterpolatedTop, TY);
+    for (u32 MipIndex = 0; MipIndex < Texture->MipCount; ++MipIndex)
+    {
+        const renderer_image* MipImage = Texture->Mips + MipIndex;
+        if ((UVDeltaX * MipImage->SizeX) <= PrimitivePixelCountX && (UVDeltaY * MipImage->SizeY) <= PrimitivePixelCountY)
+        {
+            MipLevel = MipIndex;
+            FoundMipLevel = true;
+            break;
+        }
+    }
 
-    return Interpolated;
+    renderer_find_mip_levels_result Result = {};
+    if (FoundMipLevel)
+    {
+        if (MipLevel == 0)
+        {
+            // NOTE(Traian): We have to just "upsample" the first mip.
+            Result.BlendBetweenMips = false;
+            Result.MipLevelA = MipLevel;
+        }
+        else
+        {
+            // NOTE(Traian): We should blend between the current mip level and the previous mip level.
+            Result.BlendBetweenMips = true;
+            Result.MipLevelA = MipLevel;
+            Result.MipLevelB = MipLevel - 1;
+            const renderer_image* MipImageA = Texture->Mips + Result.MipLevelA;
+            const renderer_image* MipImageB = Texture->Mips + Result.MipLevelB;
+
+            if ((UVDeltaX * MipImageB->SizeX) > PrimitivePixelCountX && (UVDeltaY * MipImageB->SizeY) > PrimitivePixelCountY)
+            {
+                // NOTE(Traian): Determine the interpolation factor by calculating the interpolation factors on the
+                // X-axis (width) and Y-axis (height) and take their average value.
+                const f32 InterpolationFactorX = Math_InverseLerp(UVDeltaX * MipImageA->SizeX, UVDeltaX * MipImageB->SizeX,
+                                                                  PrimitivePixelCountX);
+                const f32 InterpolationFactorY = Math_InverseLerp(UVDeltaY * MipImageA->SizeY, UVDeltaY * MipImageB->SizeY,
+                                                                  PrimitivePixelCountY);
+                Result.InterpolationFactorAB = 0.5F * (InterpolationFactorX + InterpolationFactorY);
+            }
+            else if ((UVDeltaY * MipImageB->SizeX) > PrimitivePixelCountX)
+            {
+                // NOTE(Traian): Determine the interpolation factor based on the size on the X-axis (width).
+                Result.InterpolationFactorAB = Math_InverseLerp(UVDeltaX * MipImageA->SizeX, UVDeltaX * MipImageB->SizeX,
+                                                                PrimitivePixelCountX);
+            }
+            else if ((UVDeltaY * MipImageB->SizeY) > PrimitivePixelCountY)
+            {
+                // NOTE(Traian): Determine the interpolation factor based on the size on the Y-axis (height).
+                Result.InterpolationFactorAB = Math_InverseLerp(UVDeltaY * MipImageA->SizeY, UVDeltaY * MipImageB->SizeY,
+                                                                PrimitivePixelCountY);
+            }
+        }
+    }
+    else
+    {
+        // NOTE(Traian): We are forced to "downsample" the last mip - sad!
+        Result.BlendBetweenMips = false;
+        Result.MipLevelA = Texture->MipCount - 1;
+    }
+    return Result;
 }
 
 internal void
-Renderer_DrawTexturedPrimitive(renderer* Renderer, renderer_texture* RenderTarget, renderer_cluster* Cluster,
+Renderer_DrawTexturedPrimitive(renderer* Renderer, renderer_image* RenderTarget, renderer_cluster* Cluster,
                                u32 PrimitiveIndex, rect2D ClusterDrawRegion)
 {
     const renderer_primitive* Primitive = Cluster->Primitives + PrimitiveIndex;
     const rect2D PrimitiveRegion = Rect2D_Intersect({ Primitive->MinPoint, Primitive->MaxPoint }, ClusterDrawRegion);
+    const renderer_texture* PrimitiveTexture = Renderer->TextureSlots[Primitive->TextureSlotIndex];
 
-    renderer_quad_rasterization_area RasterizationArea = Renderer_GetQuadRasterizationArea(RenderTarget->SizeX,
-                                                                                           RenderTarget->SizeY,
-                                                                                           PrimitiveRegion);
-    
+    renderer_rasterization_area RasterizationArea = Renderer_GetRasterizationArea(RenderTarget->SizeX,
+                                                                                  RenderTarget->SizeY,
+                                                                                  PrimitiveRegion);
+
+    renderer_find_mip_levels_info FindMipsInfo = {};
+    FindMipsInfo.NDCPrimitiveSizeX = Primitive->MaxPoint.X - Primitive->MinPoint.X;
+    FindMipsInfo.NDCPrimitiveSizeY = Primitive->MaxPoint.Y - Primitive->MinPoint.Y;
+    FindMipsInfo.ViewportSizeX = (f32)Renderer->ViewportSizeX;
+    FindMipsInfo.ViewportSizeY = (f32)Renderer->ViewportSizeY;
+    FindMipsInfo.UVDeltaX = Primitive->MaxUV.X - Primitive->MinUV.X;
+    FindMipsInfo.UVDeltaY = Primitive->MaxUV.Y - Primitive->MinUV.Y;
+    const renderer_find_mip_levels_result FindMipsResult = Renderer_FindMipLevels(PrimitiveTexture, FindMipsInfo);
+
     const vec2 MinGeometricPrimitive = Vec2(Primitive->MinPoint.X * RenderTarget->SizeX,
                                             Primitive->MinPoint.Y * RenderTarget->SizeY);
     const vec2 MaxGeometricPrimitive = Vec2(Primitive->MaxPoint.X * RenderTarget->SizeX,
                                             Primitive->MaxPoint.Y * RenderTarget->SizeY);
 
-    if (RenderTarget->BytesPerPixel == 4)
+    if (RenderTarget->Format == RENDERER_IMAGE_FORMAT_B8G8R8A8)
     {
-        u32* CurrentRowAddress = (u32*)Texture_GetPixelAddress(RenderTarget,
+        u32* CurrentRowAddress = (u32*)Image_GetPixelAddress(RenderTarget,
                                                                RasterizationArea.PixelOffsetX,
                                                                RasterizationArea.PixelOffsetY);
-        for (u32 PixelOffsetY = RasterizationArea.PixelOffsetY;
-             PixelOffsetY < RasterizationArea.PixelOffsetY + RasterizationArea.PixelCountY;
-             ++PixelOffsetY)
+
+        for (u32 PixelPositionY = RasterizationArea.PixelOffsetY;
+             PixelPositionY < RasterizationArea.PixelOffsetY + RasterizationArea.PixelCountY;
+             ++PixelPositionY)
         {
             u32* CurrentPixelAddress = CurrentRowAddress;
-            for (u32 PixelOffsetX = RasterizationArea.PixelOffsetX;
-                 PixelOffsetX < RasterizationArea.PixelOffsetX + RasterizationArea.PixelCountX;
-                 ++PixelOffsetX)
+            for (u32 PixelPositionX = RasterizationArea.PixelOffsetX;
+                 PixelPositionX < RasterizationArea.PixelOffsetX + RasterizationArea.PixelCountX;
+                 ++PixelPositionX)
             {
                 const f32 PercentageX = Math_InverseLerp(MinGeometricPrimitive.X, MaxGeometricPrimitive.X,
-                                                         (f32)PixelOffsetX + 0.5F);
+                                                         (f32)PixelPositionX + 0.5F);
                 const f32 PercentageY = Math_InverseLerp(MinGeometricPrimitive.Y, MaxGeometricPrimitive.Y,
-                                                         (f32)PixelOffsetY + 0.5F);
+                                                         (f32)PixelPositionY + 0.5F);
 
                 // NOTE(Traian): Calculate the UV coordinate of this fragment.
                 vec2 UV;
                 UV.X = Math_Lerp(Primitive->MinUV.X, Primitive->MaxUV.X, PercentageX);
                 UV.Y = Math_Lerp(Primitive->MinUV.Y, Primitive->MaxUV.Y, PercentageY);
 
+                // NOTE(Traian): Sample from the mips.
+                color4 SampledColor;
+                if (FindMipsResult.BlendBetweenMips)
+                {
+                    const renderer_image* MipImageA = PrimitiveTexture->Mips + FindMipsResult.MipLevelA;
+                    const renderer_image* MipImageB = PrimitiveTexture->Mips + FindMipsResult.MipLevelB;
+                    const color4 SampledA = Image_SampleBilinearB8G8R8A8(MipImageA, UV);
+                    const color4 SampledB = Image_SampleBilinearB8G8R8A8(MipImageB, UV);
+                    SampledColor = Math_LerpColor4(SampledA, SampledB, FindMipsResult.InterpolationFactorAB);
+                }
+                else
+                {
+                    const renderer_image* MipImage = PrimitiveTexture->Mips + FindMipsResult.MipLevelA;
+                    SampledColor = Image_SampleBilinearB8G8R8A8(MipImage, UV);
+                }
+
                 // NOTE(Traian): Output the color to the render target buffer.
-                const color4 SampledColor = Renderer_SampleTextureBPP4(Renderer->TextureSlots[Primitive->TextureSlotIndex],
-                                                                       UV);
                 const color4 CurrentColor = Color4_FromLinear(LinearColor_UnpackFromBGRA(*CurrentPixelAddress));
                 const color4 BlendedColor = Color4(Math_Lerp(CurrentColor.R, SampledColor.R, SampledColor.A),
                                                    Math_Lerp(CurrentColor.G, SampledColor.G, SampledColor.A),
                                                    Math_Lerp(CurrentColor.B, SampledColor.B, SampledColor.A));
 
                 *CurrentPixelAddress = LinearColor_PackToBGRA(Color4_ToLinear(BlendedColor));
-                // *CurrentPixelAddress = LinearColor_PackToBGRA(Color4_ToLinear({ UV.X, UV.Y, 0.0F, 1.0F }));
                 ++CurrentPixelAddress;
             }
             CurrentRowAddress += RenderTarget->SizeX;
@@ -459,12 +769,12 @@ Renderer_DrawTexturedPrimitive(renderer* Renderer, renderer_texture* RenderTarge
     else
     {
         // TODO(Traian): Eventually support more texture formats?
-        PANIC("Texture with non supported bytes-per-pixel was used as render target!");
+        PANIC("Image with non supported fomat was used as render target!");
     }
 }
 
 internal void
-Renderer_ExecuteCluster(renderer* Renderer, renderer_texture* RenderTarget, u32 ClusterIndex)
+Renderer_ExecuteCluster(renderer* Renderer, renderer_image* RenderTarget, u32 ClusterIndex)
 {
     renderer_cluster* Cluster = Renderer->Clusters + ClusterIndex;
 
@@ -522,7 +832,7 @@ Renderer_ExecuteCluster(renderer* Renderer, renderer_texture* RenderTarget, u32 
 }
 
 function void
-Renderer_DispatchClusters(renderer* Renderer, renderer_texture* RenderTarget)
+Renderer_DispatchClusters(renderer* Renderer, renderer_image* RenderTarget)
 {
     ASSERT(RenderTarget->SizeX == Renderer->ViewportSizeX);
     ASSERT(RenderTarget->SizeY == Renderer->ViewportSizeY);

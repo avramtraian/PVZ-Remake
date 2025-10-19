@@ -8,26 +8,55 @@
 #include "pvz_platform.h"
 
 //====================================================================================================================//
-//------------------------------------------------------ TEXTURE -----------------------------------------------------//
+//------------------------------------------------------- IMAGE ------------------------------------------------------//
+//====================================================================================================================//
+
+enum renderer_image_format : u8
+{
+    RENDERER_IMAGE_FORMAT_UNKNOWN = 0,
+    RENDERER_IMAGE_FORMAT_A8,
+    RENDERER_IMAGE_FORMAT_B8G8R8A8,
+};
+
+struct renderer_image
+{
+    u32                     SizeX;
+    u32                     SizeY;
+    renderer_image_format   Format;
+    void*                   PixelBuffer;
+};
+
+function memory_size    Image_GetBytesPerPixelForFormat (renderer_image_format Format);
+
+function memory_size    Image_GetPixelBufferByteCount   (u32 SizeX, u32 SizeY, renderer_image_format Format);
+
+function void           Image_AllocateFromArena         (renderer_image* Image, memory_arena* Arena,
+                                                         renderer_image_format Format, u32 SizeX, u32 SizeY);
+
+function void*          Image_GetPixelAddress           (renderer_image* Image, u32 PixelIndexX, u32 PixelIndexY);
+
+function const void*    Image_GetPixelAddress           (const renderer_image* Image, u32 PixelIndexX, u32 PixelIndexY);
+
+function f32            Image_SampleBilinearA8          (const renderer_image* Image, vec2 UV);
+
+function color4         Image_SampleBilinearB8G8R8A8    (const renderer_image* Image, vec2 UV);
+
+//====================================================================================================================//
+//------------------------------------------------------- IMAGE ------------------------------------------------------//
 //====================================================================================================================//
 
 struct renderer_texture
 {
-    void*       PixelBuffer;
-    memory_size BytesPerPixel;
-    u32         SizeX;
-    u32         SizeY;
+    u32                     SizeX;
+    u32                     SizeY;
+    renderer_image_format   Format;
+    u32                     MaxMipCount;
+    u32                     MipCount;
+    renderer_image*         Mips;
 };
 
-function void           Texture_AllocateFromArena   (renderer_texture* Texture, memory_arena* Arena,
-                                                     memory_size BytesPerPixel, u32 SizeX, u32 SizeY);
-
-function void           Texture_CreateFromBMP       (renderer_texture* Texture, memory_arena* Arena,
-                                                     const void* BMPBuffer, memory_size BMPBufferSize);
-
-function void*          Texture_GetPixelAddress     (renderer_texture* Texture, u32 PixelIndexX, u32 PixelIndexY);
-
-function const void*    Texture_GetPixelAddress     (const renderer_texture* Texture, u32 PixelIndexX, u32 PixelIndexY);
+function void           Texture_Create                  (renderer_texture* Texture, memory_arena* Arena,
+                                                         const renderer_image* SourceImage, u32 MaxMipCount);
 
 //====================================================================================================================//
 //----------------------------------------------------- RENDERER -----------------------------------------------------//
@@ -80,4 +109,4 @@ function void   Renderer_PushPrimitive      (renderer* Renderer, vec2 MinPoint, 
                                              color4 Color, vec2 MinUV = {}, vec2 MaxUV = {},
                                              renderer_texture* Texture = NULL);
 
-function void   Renderer_DispatchClusters   (renderer* Renderer, renderer_texture* RenderTarget);
+function void   Renderer_DispatchClusters   (renderer* Renderer, renderer_image* RenderTarget);
