@@ -39,29 +39,44 @@ internal void
 Asset_ReadFontFromStream(asset* Asset, memory_stream* AssetStream, memory_arena* Arena)
 {
     ZERO_STRUCT_POINTER(Asset);
+    Asset->Type = ASSET_TYPE_FONT;
 
     const asset_header_font* FontHeader = CONSUME(AssetStream, asset_header_font);
-    asset_font_glyph* Glyphs = PUSH_ARRAY(Arena, asset_font_glyph, FontHeader->GlyphCount);
+    Asset->Font.Height = FontHeader->Height;
+    Asset->Font.Ascent = FontHeader->Ascent;
+    Asset->Font.Descent = FontHeader->Descent;
+    Asset->Font.LineGap = FontHeader->LineGap;
+    Asset->Font.GlyphCount = FontHeader->GlyphCount;
+
+    Asset->Font.Glyphs = PUSH_ARRAY(Arena, asset_font_glyph, Asset->Font.GlyphCount);
+    Asset->Font.KerningTable = PUSH_ARRAY(Arena, s32, Asset->Font.GlyphCount * Asset->Font.GlyphCount);
+
     for (u32 GlyphIndex = 0; GlyphIndex < FontHeader->GlyphCount; ++GlyphIndex)
     {
+        asset_font_glyph* Glyph = Asset->Font.Glyphs + GlyphIndex;
         const asset_font_glyph_header* GlyphHeader = CONSUME(AssetStream, asset_font_glyph_header);
-        const memory_size GLYPH_TEXTURE_BPP = 1;
+
+        Glyph->Codepoint = GlyphHeader->Codepoint;
+        Glyph->AdvanceWidth = GlyphHeader->AdvanceWidth;
+        Glyph->LeftSideBearing = GlyphHeader->LeftSideBearing;
+        Glyph->TextureOffsetX = GlyphHeader->TextureOffsetX;
+        Glyph->TextureOffsetY = GlyphHeader->TextureOffsetY;
+
+        const renderer_image_format GLYPH_IMAGE_FORMAT = RENDERER_IMAGE_FORMAT_A8;        
+        renderer_image GlyphImage = {};
+        GlyphImage.SizeX = GlyphHeader->TextureSizeX;
+        GlyphImage.SizeY = GlyphHeader->TextureSizeY;
+        GlyphImage.Format = GLYPH_IMAGE_FORMAT;
+
         const memory_size PixelBufferByteCount = (memory_size)GlyphHeader->TextureSizeX *
                                                  (memory_size)GlyphHeader->TextureSizeY *
-                                                 GLYPH_TEXTURE_BPP;
-        void* PixelBuffer = MemoryStream_Consume(AssetStream, PixelBufferByteCount);
+                                                 Image_GetBytesPerPixelForFormat(GLYPH_IMAGE_FORMAT);
+        GlyphImage.PixelBuffer = CONSUME_ARRAY(AssetStream, u8, PixelBufferByteCount / sizeof(u8));
 
-        Glyphs[GlyphIndex].Codepoint = GlyphHeader->Codepoint;
-        Glyphs[GlyphIndex].RendererTexture.PixelBuffer = PixelBuffer;
-        Glyphs[GlyphIndex].RendererTexture.SizeX = GlyphHeader->TextureSizeX;
-        Glyphs[GlyphIndex].RendererTexture.SizeY = GlyphHeader->TextureSizeY;
-        Glyphs[GlyphIndex].RendererTexture.BytesPerPixel = GLYPH_TEXTURE_BPP;
+        Texture_Create(&Glyph->RendererTexture, Arena, &GlyphImage, 4);
     }
 
-    Asset->Type = ASSET_TYPE_FONT;
-    Asset->Font.Height = FontHeader->Height;
-    Asset->Font.GlyphCount = FontHeader->GlyphCount;
-    Asset->Font.Glyphs = Glyphs;
+    Asset->Font.KerningTable = CONSUME_ARRAY(AssetStream, s32, Asset->Font.GlyphCount * Asset->Font.GlyphCount);
 }
 
 //====================================================================================================================//

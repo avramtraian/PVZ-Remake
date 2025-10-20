@@ -58,27 +58,30 @@ function void                       MemoryStream_Initialize     (memory_stream* 
 
 function void                       MemoryStream_Reset          (memory_stream* Stream);
 
-function void*                      MemoryStream_Consume        (memory_stream* Stream, memory_size ByteCount);
+function void*                      MemoryStream_Consume        (memory_stream* Stream, memory_size ByteCount,
+                                                                 memory_size Alignment);
 
-function void*                      MemoryStream_TryConsume     (memory_stream* Stream, memory_size ByteCount);
+function void*                      MemoryStream_TryConsume     (memory_stream* Stream, memory_size ByteCount,
+                                                                 memory_size Alignment);
 
-function void*                      MemoryStream_Peek           (memory_stream* Stream, memory_size ByteCount);
+function void*                      MemoryStream_Peek           (memory_stream* Stream, memory_size ByteCount,
+                                                                 memory_size Alignment);
 
-#define PEEK(Stream, Type)                  (Type*)MemoryStream_Peek(Stream, sizeof(Type))
-#define PEEK_ARRAY(Stream, Type, Count)     (Type*)MemoryStream_Peek(Stream, (Count) * sizeof(Type))
+#define PEEK(Stream, Type)                  (Type*)MemoryStream_Peek(Stream, sizeof(Type), alignof(Type))
+#define PEEK_ARRAY(Stream, Type, Count)     (Type*)MemoryStream_Peek(Stream, (Count) * sizeof(Type), alignof(Type))
 
-#define CONSUME(Stream, Type)               (Type*)MemoryStream_Consume(Stream, sizeof(Type))
-#define CONSUME_ARRAY(Stream, Type, Count)  (Type*)MemoryStream_Consume(Stream, (Count) * sizeof(Type))
+#define CONSUME(Stream, Type)               (Type*)MemoryStream_Consume(Stream, sizeof(Type), alignof(Type))
+#define CONSUME_ARRAY(Stream, Type, Count)  (Type*)MemoryStream_Consume(Stream, (Count) * sizeof(Type), alignof(Type))
 
-#define EMIT(Stream, Value)                                         \
-    {                                                               \
-        void* Dst_ = MemoryStream_Consume(Stream, sizeof(Value));   \
-        CopyMemory(Dst_, &(Value), sizeof(Value));                  \
+#define EMIT(Stream, Value)                                                                 \
+    {                                                                                       \
+        void* Dst_ = MemoryStream_Consume(Stream, sizeof(Value), alignof(decltype(Value))); \
+        CopyMemory(Dst_, &(Value), sizeof(Value));                                          \
     }
 
-#define EMIT_ARRAY(Stream, Array, Count)                                \
-    {                                                                   \
-        const memory_size ByteCount_ = (Count) * sizeof((Array)[0]);    \
-        void* Dst_ = MemoryStream_Consume(Stream, ByteCount_);          \
-        CopyMemory(Dst_, Array, ByteCount_);                            \
+#define EMIT_ARRAY(Stream, Array, Count)                                                        \
+    {                                                                                           \
+        const memory_size ByteCount_ = (Count) * sizeof((Array)[0]);                            \
+        void* Dst_ = MemoryStream_Consume(Stream, ByteCount_, alignof(decltype((Array)[0])));   \
+        CopyMemory(Dst_, Array, ByteCount_);                                                    \
     }

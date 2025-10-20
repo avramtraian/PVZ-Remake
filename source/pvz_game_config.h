@@ -3,6 +3,8 @@
 
 #pragma once
 
+#define PLANT_SUNFLOWER_SUN_COST                            (50)
+#define PLANT_SUNFLOWER_PLANT_COOLDOWN_DELAY                (5.0F)
 #define PLANT_SUNFLOWER_HEALTH                              (300.0F)
 #define PLANT_SUNFLOWER_GENERATE_SUN_DELAY_BASE             (24.0F)
 #define PLANT_SUNFLOWER_GENERATE_SUN_DELAY_RANDOM_OFFSET    (0.5F)
@@ -14,6 +16,8 @@
 #define PLANT_SUNFLOWER_RENDER_OFFSET_X                     (0.0F)
 #define PLANT_SUNFLOWER_RENDER_OFFSET_Y                     (0.0F)
 
+#define PLANT_PEASHOOTER_SUN_COST                           (100)
+#define PLANT_PEASHOOTER_PLANT_COOLDOWN_DELAY               (5.0F)
 #define PLANT_PEASHOOTER_HEALTH                             (300.0F)
 #define PLANT_PEASHOOTER_SHOOT_DELAY                        (1.425F)
 #define PLANT_PEASHOOTER_PROJECTILE_DAMAGE                  (20.0F)

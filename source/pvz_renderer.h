@@ -87,16 +87,16 @@ struct renderer_cluster
 
 struct renderer
 {
-    u32                 ClusterCount;
-    renderer_cluster*   Clusters;
-    u32                 MaxPrimitiveCount;
-    u32                 CurrentPrimitiveIndex;
-    renderer_primitive* Primitives;
-    u32                 MaxTextureSlotCount;
-    u32                 CurrentTextureSlotIndex;
-    renderer_texture**  TextureSlots;
-    u32                 ViewportSizeX;
-    u32                 ViewportSizeY;
+    u32                         ClusterCount;
+    renderer_cluster*           Clusters;
+    u32                         MaxPrimitiveCount;
+    u32                         CurrentPrimitiveIndex;
+    renderer_primitive*         Primitives;
+    u32                         MaxTextureSlotCount;
+    u32                         CurrentTextureSlotIndex;
+    const renderer_texture**    TextureSlots;
+    u32                         ViewportSizeX;
+    u32                         ViewportSizeY;
 };
 
 function void   Renderer_Initialize         (renderer* Renderer, memory_arena* Arena);
@@ -107,6 +107,6 @@ function void   Renderer_EndFrame           (renderer* Renderer);
 
 function void   Renderer_PushPrimitive      (renderer* Renderer, vec2 MinPoint, vec2 MaxPoint, f32 ZOffset,
                                              color4 Color, vec2 MinUV = {}, vec2 MaxUV = {},
-                                             renderer_texture* Texture = NULL);
+                                             const renderer_texture* Texture = NULL);
 
 function void   Renderer_DispatchClusters   (renderer* Renderer, renderer_image* RenderTarget);

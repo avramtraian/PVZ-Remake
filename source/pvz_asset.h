@@ -34,14 +34,22 @@ struct asset_texture
 struct asset_font_glyph
 {
     u32                 Codepoint;
+    s32                 AdvanceWidth;
+    s32                 LeftSideBearing;
+    s32                 TextureOffsetX;
+    s32                 TextureOffsetY;
     renderer_texture    RendererTexture;
 };
 
 struct asset_font
 {
     f32                 Height;
+    s32                 Ascent;
+    s32                 Descent;
+    s32                 LineGap;
     u32                 GlyphCount;
     asset_font_glyph*   Glyphs;
+    s32*                KerningTable;
 };
 
 struct asset
@@ -88,12 +96,19 @@ struct asset_header_texture
 struct asset_header_font
 {
     f32 Height;
+    s32 Ascent;
+    s32 Descent;
+    s32 LineGap;
     u32 GlyphCount;
 };
 
 struct asset_font_glyph_header
 {
     u32 Codepoint;
+    s32 AdvanceWidth;
+    s32 LeftSideBearing;
+    s32 TextureOffsetX;
+    s32 TextureOffsetY;
     u32 TextureSizeX;
     u32 TextureSizeY;
 };
@@ -105,11 +120,13 @@ struct asset_font_glyph_header
 enum game_asset_id : u32
 {
     GAME_ASSET_ID_NONE = 0,
+    GAME_ASSET_ID_FONT_COMIC_SANS,
     GAME_ASSET_ID_PLANT_SUNFLOWER,
     GAME_ASSET_ID_PLANT_PEASHOOTER,
     GAME_ASSET_ID_PROJECTILE_SUN,
     GAME_ASSET_ID_PROJECTILE_PEA,
     GAME_ASSET_ID_ZOMBIE_NORMAL,
+    GAME_ASSET_ID_UI_SEED_PACKET,
     GAME_ASSET_ID_MAX_COUNT,
 };
 

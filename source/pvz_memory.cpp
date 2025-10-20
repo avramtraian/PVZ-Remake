@@ -81,12 +81,19 @@ MemoryStream_Reset(memory_stream* Stream)
 }
 
 function void*
-MemoryStream_Consume(memory_stream* Stream, memory_size ByteCount)
+MemoryStream_Consume(memory_stream* Stream, memory_size ByteCount, memory_size Alignment)
 {
-    if (Stream->ByteOffset + ByteCount <= Stream->ByteCount)
+    memory_size AlignmentOffset = Alignment - (Stream->ByteOffset % Alignment);
+    if (AlignmentOffset == Alignment)
     {
-        void* Result = (u8*)Stream->MemoryBlock + Stream->ByteOffset;
-        Stream->ByteOffset += ByteCount;
+        AlignmentOffset = 0;
+    }
+    const memory_size TotalByteCount = AlignmentOffset + ByteCount;
+
+    if (Stream->ByteOffset + TotalByteCount <= Stream->ByteCount)
+    {
+        void* Result = (u8*)Stream->MemoryBlock + Stream->ByteOffset + AlignmentOffset;
+        Stream->ByteOffset += TotalByteCount;
         return Result;
     }
     else
@@ -96,23 +103,37 @@ MemoryStream_Consume(memory_stream* Stream, memory_size ByteCount)
 }
 
 function void*
-MemoryStream_TryConsume(memory_stream* Stream, memory_size ByteCount)
+MemoryStream_TryConsume(memory_stream* Stream, memory_size ByteCount, memory_size Alignment)
 {
-    void* Result = NULL;
-    if (Stream->ByteOffset + ByteCount <= Stream->ByteCount)
+    memory_size AlignmentOffset = Alignment - (Stream->ByteOffset % Alignment);
+    if (AlignmentOffset == Alignment)
     {
-        void* Result = (u8*)Stream->MemoryBlock + Stream->ByteOffset;
-        Stream->ByteOffset += ByteCount;
+        AlignmentOffset = 0;
+    }
+    const memory_size TotalByteCount = AlignmentOffset + ByteCount;
+
+    void* Result = NULL;
+    if (Stream->ByteOffset + TotalByteCount <= Stream->ByteCount)
+    {
+        void* Result = (u8*)Stream->MemoryBlock + Stream->ByteOffset + AlignmentOffset;
+        Stream->ByteOffset += TotalByteCount;
     }
     return Result;
 }
 
 function void*
-MemoryStream_Peek(memory_stream* Stream, memory_size ByteCount)
+MemoryStream_Peek(memory_stream* Stream, memory_size ByteCount, memory_size Alignment)
 {
-    if (Stream->ByteOffset + ByteCount <= Stream->ByteCount)
+    memory_size AlignmentOffset = Alignment - (Stream->ByteOffset % Alignment);
+    if (AlignmentOffset == Alignment)
     {
-        void* Result = (u8*)Stream->MemoryBlock + Stream->ByteOffset;
+        AlignmentOffset = 0;
+    }
+    const memory_size TotalByteCount = AlignmentOffset + ByteCount;
+    
+    if (Stream->ByteOffset + TotalByteCount <= Stream->ByteCount)
+    {
+        void* Result = (u8*)Stream->MemoryBlock + Stream->ByteOffset + AlignmentOffset;
         return Result;
     }
     else

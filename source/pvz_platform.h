@@ -37,6 +37,10 @@ using ssize = s64;
 using memory_index = u64;
 using memory_size = u64;
 
+#define U32_MAX (0xFFFFFFFF)
+#define S32_MIN (0x80000000)
+#define S32_MAX (0x7FFFFFFF)
+
 #ifdef PVZ_WINDOWS
     #define ASSERT(...)         if (!(__VA_ARGS__)) { __debugbreak(); }
     #define ASSERT_NOT_REACHED  { __debugbreak(); }

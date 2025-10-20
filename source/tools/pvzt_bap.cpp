@@ -47,36 +47,6 @@ BAP_InternalPanicWithMessage(const char* Message)
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "../third_party/stb_truetype.h"
 
-internal inline memory_size
-BAP_GetPixelBufferByteCount(u32 SizeX, u32 SizeY, memory_size BytesPerPixel)
-{
-    const memory_size Result = (memory_size)SizeX *
-                               (memory_size)SizeY *
-                               BytesPerPixel;
-    return Result;
-}
-
-struct bap_texture_buffer
-{
-    u32         SizeX;
-    u32         SizeY;
-    memory_size BytesPerPixel;
-    void*       PixelBuffer;
-};
-
-struct bap_asset_texture
-{
-    game_asset_id               AssetID;
-    bap_texture_buffer          TextureBuffer;
-    asset_pack_entry_header*    EntryHeader;
-};
-
-struct bap_asset_pack
-{
-    u32                 TextureCount;
-    bap_asset_texture*  Textures;
-};
-
 struct bap_read_file_result
 {
     b8          IsValid;
@@ -109,6 +79,27 @@ BAP_ReadEntireFile(const char* FileName)
 
     return Result;
 }
+
+//====================================================================================================================//
+//-------------------------------------------------- TEXTURE LOADING -------------------------------------------------//
+//====================================================================================================================//
+
+internal inline memory_size
+BAP_GetPixelBufferByteCount(u32 SizeX, u32 SizeY, memory_size BytesPerPixel)
+{
+    const memory_size Result = (memory_size)SizeX *
+                               (memory_size)SizeY *
+                               BytesPerPixel;
+    return Result;
+}
+
+struct bap_texture_buffer
+{
+    u32         SizeX;
+    u32         SizeY;
+    memory_size BytesPerPixel;
+    void*       PixelBuffer;
+};
 
 internal bap_texture_buffer
 BAP_LoadTextureFromFile(const char* AssetRootDirectoryPath, const char* FileName, memory_size ExpectedBytesPerPixel)
@@ -168,12 +159,172 @@ BAP_LoadTextureFromFile(const char* AssetRootDirectoryPath, const char* FileName
     }
 }
 
+//====================================================================================================================//
+//--------------------------------------------------- FONT LOADING ---------------------------------------------------//
+//====================================================================================================================//
+
+struct bap_font_glyph
+{
+    u32                 Codepoint;
+    s32                 AdvanceWidth;
+    s32                 LeftSideBearing;
+    s32                 TextureOffsetX;
+    s32                 TextureOffsetY;
+    bap_texture_buffer  Texture;
+};
+
+struct bap_font_buffer
+{
+    f32             Height;
+    s32             Ascent;
+    s32             Descent;
+    s32             LineGap;
+    u32             GlyphCount;
+    bap_font_glyph* Glyphs;
+    s32*            KerningTable;
+};
+
+internal bap_font_buffer
+BAP_LoadFontFromFile(const char* AssetRootDirectoryPath, const char* FileName, float FontHeight,
+                     const char* Codepoints, u32 CodepointCount)
+{
+    char FullFileName[512] = {};
+    snprintf(FullFileName, sizeof(FullFileName), "%s/%s", AssetRootDirectoryPath, FileName);
+
+    bap_read_file_result ReadResult = BAP_ReadEntireFile(FullFileName);
+    if (ReadResult.IsValid)
+    {
+        stbtt_fontinfo FontInfo = {};
+        if (stbtt_InitFont(&FontInfo, (const u8*)ReadResult.FileData,
+                           stbtt_GetFontOffsetForIndex((const u8*)ReadResult.FileData, 0)))
+        {
+            const f32 Scale = stbtt_ScaleForPixelHeight(&FontInfo, FontHeight);
+            int FontAscent, FontDescent, FontLineGap;
+            stbtt_GetFontVMetrics(&FontInfo, &FontAscent, &FontDescent, &FontLineGap);
+
+            bap_font_buffer FontBuffer = {};
+            FontBuffer.Height = FontHeight;
+            FontBuffer.Ascent = Scale * FontAscent;
+            FontBuffer.Descent = Scale * FontDescent;
+            FontBuffer.LineGap = Scale * FontLineGap;
+            FontBuffer.GlyphCount = CodepointCount;
+            FontBuffer.Glyphs = (bap_font_glyph*)malloc(CodepointCount * sizeof(bap_font_glyph));
+            ZERO_STRUCT_ARRAY(FontBuffer.Glyphs, CodepointCount);
+            FontBuffer.KerningTable = (s32*)malloc(CodepointCount * CodepointCount * sizeof(s32));
+            ZERO_STRUCT_ARRAY(FontBuffer.KerningTable, CodepointCount * CodepointCount);
+
+            //
+            // NOTE(Traian): Generate the kerning table.
+            //
+
+            for (u32 FirstCodepointIndex = 0; FirstCodepointIndex < CodepointCount; ++FirstCodepointIndex)
+            {
+                for (u32 SecondCodepointIndex = 0; SecondCodepointIndex < CodepointCount; ++SecondCodepointIndex)
+                {
+                    const u32 FirstCodepoint = Codepoints[FirstCodepointIndex];
+                    const u32 SecondCodepoint = Codepoints[SecondCodepointIndex];
+                    const int KernAdvance = stbtt_GetCodepointKernAdvance(&FontInfo, FirstCodepoint, SecondCodepoint);
+
+                    const u32 KerningTableIndex = (FirstCodepointIndex * CodepointCount) + SecondCodepointIndex;
+                    FontBuffer.KerningTable[KerningTableIndex] = Scale * KernAdvance;
+                }
+            }
+
+            //
+            // NOTE(Traian): Generate glyph metrics and textures.
+            //
+
+            for (u32 CodepointIndex = 0; CodepointIndex < CodepointCount; ++CodepointIndex)
+            {
+                const int GlyphCodepoint = Codepoints[CodepointIndex];
+                const int GlyphIndex = stbtt_FindGlyphIndex(&FontInfo, GlyphCodepoint);
+                if (GlyphIndex != 0)
+                {
+                    int GlyphAdvanceWidth, GlyphLeftSideBearing;
+                    stbtt_GetGlyphHMetrics(&FontInfo, GlyphIndex, &GlyphAdvanceWidth, &GlyphLeftSideBearing);
+
+                    int GlyphWidth, GlyphHeight, GlyphOffsetX, GlyphOffsetY;
+                    u8* GlyphTextureData = stbtt_GetGlyphBitmap(&FontInfo, Scale, Scale, GlyphIndex,
+                                                                &GlyphWidth, &GlyphHeight,
+                                                                &GlyphOffsetX, &GlyphOffsetY);
+                    const memory_size GLYPH_TEXTURE_BPP = 1;
+                    
+                    bap_font_glyph* Glyph = FontBuffer.Glyphs + CodepointIndex;
+                    Glyph->Codepoint = GlyphCodepoint;
+                    Glyph->AdvanceWidth = Scale * GlyphAdvanceWidth;
+                    Glyph->LeftSideBearing = Scale * GlyphLeftSideBearing;
+                    Glyph->TextureOffsetX = GlyphOffsetX;
+                    // NOTE(traian): The stbtt generated bitmap is Y-down (top-left origin).
+                    Glyph->TextureOffsetY = -(GlyphHeight + GlyphOffsetY);
+                    Glyph->Texture.SizeX = GlyphWidth;
+                    Glyph->Texture.SizeY = GlyphHeight;
+                    Glyph->Texture.BytesPerPixel = GLYPH_TEXTURE_BPP;
+                    Glyph->Texture.PixelBuffer = malloc(BAP_GetPixelBufferByteCount(Glyph->Texture.SizeX,
+                                                                                    Glyph->Texture.SizeY,
+                                                                                    GLYPH_TEXTURE_BPP));
+
+                    // NOTE(Traian): The stb_truetype library generates the bitmap Y-down, while the engine assumes all
+                    // textures are Y-up, so flip the glyph texture before packaging it into the asset pack.
+                    u8* DstPixels = (u8*)Glyph->Texture.PixelBuffer;
+                    const u8* SrcPixels = GlyphTextureData + ((Glyph->Texture.SizeY - 1) * Glyph->Texture.SizeX);
+                    const memory_size RowByteCount = Glyph->Texture.SizeX * GLYPH_TEXTURE_BPP;
+                    for (u32 RowIndex = 0; RowIndex < Glyph->Texture.SizeY; ++RowIndex)
+                    {
+                        CopyMemory(DstPixels, SrcPixels, RowByteCount);
+                        DstPixels += Glyph->Texture.SizeX;
+                        SrcPixels -= Glyph->Texture.SizeX;
+                    }
+
+                    stbtt_FreeBitmap(GlyphTextureData, NULL);
+                }
+            }
+
+            free(ReadResult.FileData);
+            return FontBuffer;  
+        }
+        else
+        {
+            PANIC("Failed to read a font from the file '%s' using the stb_truetype library!", FileName);
+        }
+    }
+    else
+    {
+        PANIC("Failed to open font file '%s' for reading!", FileName);
+    }
+}
+
+//====================================================================================================================//
+//----------------------------------------------- ASSET PACK DEFINITION ----------------------------------------------//
+//====================================================================================================================//
+
+struct bap_asset_texture
+{
+    game_asset_id               AssetID;
+    asset_pack_entry_header*    EntryHeader;
+    bap_texture_buffer          TextureBuffer;
+};
+
+struct bap_asset_font
+{
+    game_asset_id               AssetID;
+    asset_pack_entry_header*    EntryHeader;
+    bap_font_buffer             FontBuffer;
+};
+
+struct bap_asset_pack
+{
+    u32                 TextureCount;
+    bap_asset_texture*  Textures;
+    u32                 FontCount;
+    bap_asset_font*     Fonts;
+};
+
 internal void
 BAP_GenerateAssetPack(bap_asset_pack* AssetPack, const char* AssetRootDirectoryPath)
 {
     ZERO_STRUCT_POINTER(AssetPack);
 
-    AssetPack->TextureCount = 5;
+    AssetPack->TextureCount = 6;
     AssetPack->Textures = (bap_asset_texture*)malloc(AssetPack->TextureCount * sizeof(bap_asset_texture));
     ZERO_STRUCT_ARRAY(AssetPack->Textures, AssetPack->TextureCount);
 
@@ -212,7 +363,32 @@ BAP_GenerateAssetPack(bap_asset_pack* AssetPack, const char* AssetRootDirectoryP
         AssetPack->Textures[4].AssetID = GAME_ASSET_ID_ZOMBIE_NORMAL;
         AssetPack->Textures[4].TextureBuffer = TextureBuffer;
     }
+    {
+        const char* FileName = "ui_seed_packet.png";
+        const memory_size BytesPerPixel = 4;
+        bap_texture_buffer TextureBuffer = BAP_LoadTextureFromFile(AssetRootDirectoryPath, FileName, BytesPerPixel);
+        AssetPack->Textures[5].AssetID = GAME_ASSET_ID_UI_SEED_PACKET;
+        AssetPack->Textures[5].TextureBuffer = TextureBuffer;
+    }
+
+    AssetPack->FontCount = 1;
+    AssetPack->Fonts = (bap_asset_font*)malloc(AssetPack->FontCount * sizeof(bap_asset_font));
+    ZERO_STRUCT_ARRAY(AssetPack->Fonts, AssetPack->FontCount);
+
+    {
+        const char* FileName = "comic.ttf";
+        const f32 Height = 64.0F;
+        const char Codepoints[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
+        bap_font_buffer FontBuffer = BAP_LoadFontFromFile(AssetRootDirectoryPath, FileName, Height,
+                                                          Codepoints, sizeof(Codepoints));
+        AssetPack->Fonts[0].AssetID = GAME_ASSET_ID_FONT_COMIC_SANS;
+        AssetPack->Fonts[0].FontBuffer = FontBuffer;
+    }
 }
+
+//====================================================================================================================//
+//------------------------------------------------ ASSET PACK WRITING ------------------------------------------------//
+//====================================================================================================================//
 
 internal void
 BAP_WriteTexture(memory_stream* Stream, const bap_asset_texture* Texture)
@@ -234,7 +410,62 @@ BAP_WriteTexture(memory_stream* Stream, const bap_asset_texture* Texture)
     const memory_size PixelBufferByteCount = BAP_GetPixelBufferByteCount(TextureHeader.SizeX,
                                                                          TextureHeader.SizeY,
                                                                          TextureHeader.BytesPerPixel);
-    EMIT_ARRAY(Stream, (u8*)Texture->TextureBuffer.PixelBuffer, PixelBufferByteCount);
+    if (TextureHeader.BytesPerPixel == 4)
+    {
+        EMIT_ARRAY(Stream, (u32*)Texture->TextureBuffer.PixelBuffer, PixelBufferByteCount / sizeof(u32));
+    }
+    else
+    {
+        PANIC("Invalid texture BPP when trying to write it to the asset pack!");
+    }
+
+    // NOTE(Traian): Finalize the entry header.
+    EntryHeader->ByteCount = Stream->ByteOffset - EntryHeader->ByteOffset;
+}
+
+internal void
+BAP_WriteFont(memory_stream* Stream, const bap_asset_font* Font)
+{
+    // NOTE(Traian): Fill available information in the entry header.
+    asset_pack_entry_header* EntryHeader = Font->EntryHeader;
+    EntryHeader->AssetID = Font->AssetID;
+    EntryHeader->Type = ASSET_TYPE_FONT;
+    EntryHeader->ByteOffset = Stream->ByteOffset;
+
+    // NOTE(Traian): Emit the header.
+    asset_header_font FontHeader = {};
+    FontHeader.Height = Font->FontBuffer.Height;
+    FontHeader.Ascent = Font->FontBuffer.Ascent;
+    FontHeader.Descent = Font->FontBuffer.Descent;
+    FontHeader.LineGap = Font->FontBuffer.LineGap;
+    FontHeader.GlyphCount = Font->FontBuffer.GlyphCount;
+    EMIT(Stream, FontHeader);
+
+    // NOTE(Traian): Emit the glyphs.
+    for (u32 GlyphIndex = 0; GlyphIndex < Font->FontBuffer.GlyphCount; ++GlyphIndex)
+    {
+        const bap_font_glyph* Glyph = Font->FontBuffer.Glyphs + GlyphIndex;
+
+        // NOTE(Traian): Emit the glyph header.
+        asset_font_glyph_header GlyphHeader = {};
+        GlyphHeader.Codepoint = Glyph->Codepoint;
+        GlyphHeader.AdvanceWidth = Glyph->AdvanceWidth;
+        GlyphHeader.LeftSideBearing = Glyph->LeftSideBearing;
+        GlyphHeader.TextureOffsetX = Glyph->TextureOffsetX;
+        GlyphHeader.TextureOffsetY = Glyph->TextureOffsetY;
+        GlyphHeader.TextureSizeX = Glyph->Texture.SizeX;
+        GlyphHeader.TextureSizeY = Glyph->Texture.SizeY;
+        EMIT(Stream, GlyphHeader);
+
+        // NOTE(Traian): Emit the glyph texture pixel buffer.
+        const memory_size PixelBufferByteCount = BAP_GetPixelBufferByteCount(Glyph->Texture.SizeX,
+                                                                             Glyph->Texture.SizeY,
+                                                                             Glyph->Texture.BytesPerPixel);
+        EMIT_ARRAY(Stream, (u8*)Glyph->Texture.PixelBuffer, PixelBufferByteCount / sizeof(u8));
+    }
+
+    // NOTE(Traian): Emit the kerning table.
+    EMIT_ARRAY(Stream, Font->FontBuffer.KerningTable, Font->FontBuffer.GlyphCount * Font->FontBuffer.GlyphCount);
 
     // NOTE(Traian): Finalize the entry header.
     EntryHeader->ByteCount = Stream->ByteOffset - EntryHeader->ByteOffset;
@@ -246,7 +477,7 @@ BAP_WriteAssetPack(memory_stream* Stream, const bap_asset_pack* AssetPack)
     // NOTE(Traian): Emit the asset pack header to the stream.
     asset_pack_header Header = {};
     Header.MagicWord = PVZ_ASSET_PACK_MAGIC_WORD;
-    Header.EntryCount = AssetPack->TextureCount;
+    Header.EntryCount = AssetPack->TextureCount + AssetPack->FontCount;
     EMIT(Stream, Header);
 
     // NOTE(Traian): Emit all entry headers, without filling any information. They will be finalized
@@ -257,13 +488,29 @@ BAP_WriteAssetPack(memory_stream* Stream, const bap_asset_pack* AssetPack)
         AssetPack->Textures[TextureIndex].EntryHeader = PEEK(Stream, asset_pack_entry_header);
         EMIT(Stream, EntryHeader);
     }
+    for (u32 FontIndex = 0; FontIndex < AssetPack->FontCount; ++FontIndex)
+    {
+        asset_pack_entry_header EntryHeader = {};
+        AssetPack->Fonts[FontIndex].EntryHeader = PEEK(Stream, asset_pack_entry_header);
+        EMIT(Stream, EntryHeader);
+    }
 
     // NOTE(Traian): Write texture assets to the stream.
     for (u32 TextureIndex = 0; TextureIndex < AssetPack->TextureCount; ++TextureIndex)
     {
         BAP_WriteTexture(Stream, AssetPack->Textures + TextureIndex);
     }
+
+    // NOTE(Traian): Write font assets to the stream.
+    for (u32 FontIndex = 0; FontIndex < AssetPack->FontCount; ++FontIndex)
+    {
+        BAP_WriteFont(Stream, AssetPack->Fonts + FontIndex);
+    }
 }
+
+//====================================================================================================================//
+//------------------------------------------------- TOOL ENTRY POINT -------------------------------------------------//
+//====================================================================================================================//
 
 function int
 main(int ArgumentCount, char** Arguments)

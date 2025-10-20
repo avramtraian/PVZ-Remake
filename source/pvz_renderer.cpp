@@ -82,8 +82,8 @@ Image_SampleBilinearA8(const renderer_image* Image, vec2 UV)
     ASSERT(0.0F <= UV.X && UV.X <= 1.0F && 0.0F <= UV.Y && UV.Y <= 1.0F);
 
     // NOTE(Traian): Bottom-left pixel.
-    const u32 Tex1X = (u32)(UV.X * (f32)(Image->SizeX - 1));
-    const u32 Tex1Y = (u32)(UV.Y * (f32)(Image->SizeY - 1));
+    const u32 Tex1X = (u32)(UV.X * (f32)Image->SizeX);
+    const u32 Tex1Y = (u32)(UV.Y * (f32)Image->SizeY);
     // NOTE(Traian): Bottom-right pixel.
     const u32 Tex2X = Tex1X + 1;
     const u32 Tex2Y = Tex1Y;
@@ -122,8 +122,8 @@ Image_SampleBilinearB8G8R8A8(const renderer_image* Image, vec2 UV)
     ASSERT(0.0F <= UV.X && UV.X <= 1.0F && 0.0F <= UV.Y && UV.Y <= 1.0F);
 
     // NOTE(Traian): Bottom-left pixel.
-    const u32 Tex1X = (u32)(UV.X * (f32)(Image->SizeX - 1));
-    const u32 Tex1Y = (u32)(UV.Y * (f32)(Image->SizeY - 1));
+    const u32 Tex1X = (u32)(UV.X * (f32)Image->SizeX);
+    const u32 Tex1Y = (u32)(UV.Y * (f32)Image->SizeY);
     // NOTE(Traian): Bottom-right pixel.
     const u32 Tex2X = Tex1X + 1;
     const u32 Tex2Y = Tex1Y;
@@ -293,9 +293,9 @@ Renderer_Initialize(renderer* Renderer, memory_arena* Arena)
     Renderer->MaxPrimitiveCount = 1024;
     Renderer->MaxTextureSlotCount = 64;
 
-    Renderer->Clusters      = PUSH_ARRAY(Arena, renderer_cluster,   Renderer->ClusterCount);
-    Renderer->Primitives    = PUSH_ARRAY(Arena, renderer_primitive, Renderer->MaxPrimitiveCount);
-    Renderer->TextureSlots  = PUSH_ARRAY(Arena, renderer_texture*,  Renderer->MaxTextureSlotCount);
+    Renderer->Clusters      = PUSH_ARRAY(Arena, renderer_cluster,           Renderer->ClusterCount);
+    Renderer->Primitives    = PUSH_ARRAY(Arena, renderer_primitive,         Renderer->MaxPrimitiveCount);
+    Renderer->TextureSlots  = PUSH_ARRAY(Arena, const renderer_texture*,    Renderer->MaxTextureSlotCount);
 
     for (u32 ClusterIndex = 0; ClusterIndex < Renderer->ClusterCount; ++ClusterIndex)
     {
@@ -432,7 +432,7 @@ Renderer_EndFrame(renderer* Renderer)
 
 function void
 Renderer_PushPrimitive(renderer* Renderer, vec2 MinPoint, vec2 MaxPoint, f32 ZOffset, color4 Color,
-                       vec2 MinUV /*= {}*/, vec2 MaxUV /*= {}*/, renderer_texture* Texture /*= NULL*/)
+                       vec2 MinUV /*= {}*/, vec2 MaxUV /*= {}*/, const renderer_texture* Texture /*= NULL*/)
 {
     if (Renderer->CurrentPrimitiveIndex >= Renderer->MaxPrimitiveCount)
     {
@@ -566,7 +566,6 @@ Renderer_DrawFilledPrimitive(renderer* Renderer, renderer_image* RenderTarget, r
 {
     const renderer_primitive* Primitive = Cluster->Primitives + PrimitiveIndex;
     const rect2D PrimitiveRegion = Rect2D_Intersect({ Primitive->MinPoint, Primitive->MaxPoint }, ClusterDrawRegion);
-    const u32 PackedPrimitiveColor = LinearColor_PackToBGRA(Color4_ToLinear(Primitive->Color));
 
     renderer_rasterization_area RasterizationArea = Renderer_GetRasterizationArea(RenderTarget->SizeX,
                                                                                   RenderTarget->SizeY,
@@ -583,7 +582,13 @@ Renderer_DrawFilledPrimitive(renderer* Renderer, renderer_image* RenderTarget, r
             u32* CurrentPixelAddress = CurrentRowAddress;
             for (u32 PixelIndexX = 0; PixelIndexX < RasterizationArea.PixelCountX; ++PixelIndexX)
             {
-                *CurrentPixelAddress = PackedPrimitiveColor;
+                // NOTE(Traian): Output the color to the render target buffer.
+                const color4 CurrentColor = Color4_FromLinear(LinearColor_UnpackFromBGRA(*CurrentPixelAddress));
+                const color4 BlendedColor = Color4(Math_Lerp(CurrentColor.R, Primitive->Color.R, Primitive->Color.A),
+                                                   Math_Lerp(CurrentColor.G, Primitive->Color.G, Primitive->Color.A),
+                                                   Math_Lerp(CurrentColor.B, Primitive->Color.B, Primitive->Color.A));
+
+                *CurrentPixelAddress = LinearColor_PackToBGRA(Color4_ToLinear(BlendedColor));
                 ++CurrentPixelAddress;
             }
             CurrentRowAddress += RenderTarget->SizeX;
@@ -684,6 +689,7 @@ Renderer_FindMipLevels(const renderer_texture* Texture, renderer_find_mip_levels
         Result.BlendBetweenMips = false;
         Result.MipLevelA = Texture->MipCount - 1;
     }
+
     return Result;
 }
 
@@ -740,18 +746,46 @@ Renderer_DrawTexturedPrimitive(renderer* Renderer, renderer_image* RenderTarget,
 
                 // NOTE(Traian): Sample from the mips.
                 color4 SampledColor;
-                if (FindMipsResult.BlendBetweenMips)
+                if (PrimitiveTexture->Format == RENDERER_IMAGE_FORMAT_B8G8R8A8)
                 {
-                    const renderer_image* MipImageA = PrimitiveTexture->Mips + FindMipsResult.MipLevelA;
-                    const renderer_image* MipImageB = PrimitiveTexture->Mips + FindMipsResult.MipLevelB;
-                    const color4 SampledA = Image_SampleBilinearB8G8R8A8(MipImageA, UV);
-                    const color4 SampledB = Image_SampleBilinearB8G8R8A8(MipImageB, UV);
-                    SampledColor = Math_LerpColor4(SampledA, SampledB, FindMipsResult.InterpolationFactorAB);
+                    if (FindMipsResult.BlendBetweenMips)
+                    {
+                        const renderer_image* MipImageA = PrimitiveTexture->Mips + FindMipsResult.MipLevelA;
+                        const renderer_image* MipImageB = PrimitiveTexture->Mips + FindMipsResult.MipLevelB;
+                        const color4 SampledA = Image_SampleBilinearB8G8R8A8(MipImageA, UV);
+                        const color4 SampledB = Image_SampleBilinearB8G8R8A8(MipImageB, UV);
+                        SampledColor = Math_LerpColor4(SampledA, SampledB, FindMipsResult.InterpolationFactorAB);
+                    }
+                    else
+                    {
+                        const renderer_image* MipImage = PrimitiveTexture->Mips + FindMipsResult.MipLevelA;
+                        SampledColor = Image_SampleBilinearB8G8R8A8(MipImage, UV);
+                    }
+
+                    SampledColor.R *= Primitive->Color.R;
+                    SampledColor.G *= Primitive->Color.G;
+                    SampledColor.B *= Primitive->Color.B;
+                    SampledColor.A *= Primitive->Color.A;
                 }
                 else
                 {
-                    const renderer_image* MipImage = PrimitiveTexture->Mips + FindMipsResult.MipLevelA;
-                    SampledColor = Image_SampleBilinearB8G8R8A8(MipImage, UV);
+                    f32 SampledAlpha;
+                    if (FindMipsResult.BlendBetweenMips)
+                    {
+                        const renderer_image* MipImageA = PrimitiveTexture->Mips + FindMipsResult.MipLevelA;
+                        const renderer_image* MipImageB = PrimitiveTexture->Mips + FindMipsResult.MipLevelB;
+                        const f32 SampledA = Image_SampleBilinearA8(MipImageA, UV);
+                        const f32 SampledB = Image_SampleBilinearA8(MipImageB, UV);
+                        SampledAlpha = Math_Lerp(SampledA, SampledB, FindMipsResult.InterpolationFactorAB);
+                    }
+                    else
+                    {
+                        const renderer_image* MipImage = PrimitiveTexture->Mips + FindMipsResult.MipLevelA;
+                        SampledAlpha = Image_SampleBilinearA8(MipImage, UV);
+                    }
+                    
+                    SampledColor = Primitive->Color;
+                    SampledColor.A *= SampledAlpha;
                 }
 
                 // NOTE(Traian): Output the color to the render target buffer.
