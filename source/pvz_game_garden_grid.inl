@@ -172,6 +172,158 @@ GameGardenGrid_RemovePendingDestroyEntities(void* EntityBuffer, memory_size Enti
 
     return EntityCount;
 }
+internal void
+GameGardenGrid_UpdatePlantSunflower(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                    u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    plant_entity_sunflower* Sunflower = &PlantEntity->Sunflower;
+
+    const f32 DelayOffset = Random_RangeF32(&GardenGrid->RandomSeries,
+                                            -Sunflower->GenerateDelayRandomOffset,
+                                            +Sunflower->GenerateDelayRandomOffset);
+    if (Sunflower->GenerateTimer >= Sunflower->GenerateDelayBase + DelayOffset)
+    {
+        // NOTE(Traian): Reset the generate timer.
+        Sunflower->GenerateTimer = 0.0F;
+
+        // NOTE(Traian): Determine the random offset to add to the sun spawn location.
+        const f32 MinSpawnDistance = 0.5F;
+        const f32 MaxSpawnDistance = 1.0F;
+        vec2 SunSpawnOffset = {};
+        SunSpawnOffset.X = Random_SignF32(&GardenGrid->RandomSeries) *
+                           Random_RangeF32(&GardenGrid->RandomSeries, MinSpawnDistance, MaxSpawnDistance);
+        SunSpawnOffset.Y = Random_SignF32(&GardenGrid->RandomSeries) *
+                           Random_RangeF32(&GardenGrid->RandomSeries, MinSpawnDistance, MaxSpawnDistance);
+        vec2 Position = CellPoint + SunSpawnOffset;
+        Position.X = Clamp(Position.X,
+                           GardenGrid->MinPoint.X + Sunflower->SunRadius,
+                           GardenGrid->MaxPoint.X - Sunflower->SunRadius);
+        Position.Y = Clamp(Position.Y,
+                           GardenGrid->MinPoint.Y + Sunflower->SunRadius,
+                           GardenGrid->MaxPoint.Y - Sunflower->SunRadius);
+
+        // NOTE(Traian): Push a new sun "projectile" to the entity buffer.
+        projectile_entity* SunProjectile = GameGardenGrid_PushProjectileEntity(GardenGrid,
+                                                                               PROJECTILE_TYPE_SUN,
+                                                                               CellIndexY);
+        SunProjectile->Position = Position;
+        SunProjectile->Sun.Radius = Sunflower->SunRadius;
+        SunProjectile->Sun.SunAmount = Sunflower->SunAmount;
+        SunProjectile->Sun.DecayDelay = Sunflower->SunDecayDelay;
+    }
+    else
+    {
+        Sunflower->GenerateTimer += DeltaTime;
+    }
+}
+
+internal inline b8
+GameGardenGrid_ShootPeaProjectile(game_garden_grid* GardenGrid, u32 CellIndexY, vec2 Position,
+                                  f32 Velocity, f32 Damage, f32 Radius,
+                                  b8 ShootOnlyWhenThereAreZombiesOnTheLane)
+{
+    b8 ShouldShoot = true;
+    if (ShootOnlyWhenThereAreZombiesOnTheLane)
+    {
+        ShouldShoot = false;
+        for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
+        {
+            const zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
+            if (ZombieEntity->CellIndexY == CellIndexY)
+            {
+                ShouldShoot = true;
+                break;
+            }
+        }
+    }
+
+    if (ShouldShoot)
+    {
+        // NOTE(Traian): Push a new pea projectile to the entity buffer.
+        projectile_entity* PeaProjectile = GameGardenGrid_PushProjectileEntity(GardenGrid,
+                                                                               PROJECTILE_TYPE_PEA,
+                                                                               CellIndexY);
+        PeaProjectile->Position = Position;
+        PeaProjectile->Pea.Velocity = Velocity;
+        PeaProjectile->Pea.Damage = Damage;
+        PeaProjectile->Pea.Radius = Radius;
+    }
+
+    return ShouldShoot;
+}
+
+internal void
+GameGardenGrid_UpdatePlantPeashooter(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                     u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    plant_entity_peashooter* Peashooter = &PlantEntity->Peashooter;
+
+    if (Peashooter->ShootTimer >= Peashooter->ShootDelay)
+    {
+        const vec2 ShootOffset = Vec2(PLANT_PEASHOOTER_SHOOT_POINT_OFFSET_X, PLANT_PEASHOOTER_SHOOT_POINT_OFFSET_Y);
+        const vec2 ProjectilePosition = CellPoint + ShootOffset;
+
+        if (GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
+                                              Peashooter->ProjectileVelocity, Peashooter->ProjectileDamage,
+                                              Peashooter->ProjectileRadius, true))
+        {
+            // NOTE(Traian): Reset the shoot timer.
+            Peashooter->ShootTimer = 0.0F;
+        }
+    }
+    else
+    {
+        Peashooter->ShootTimer += DeltaTime;
+    }
+}
+
+internal void
+GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                           u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    plant_entity_repeater* Repeater = &PlantEntity->Repeater;
+
+    const vec2 ShootOffset = Vec2(PLANT_REPEATER_SHOOT_POINT_OFFSET_X,
+                                  PLANT_REPEATER_SHOOT_POINT_OFFSET_Y);
+    const vec2 ProjectilePosition = CellPoint + ShootOffset;
+
+    if (!Repeater->IsInShootSequence)
+    {
+        if (Repeater->ShootTimer >= Repeater->ShootSequenceDelay)
+        {
+
+            if (GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
+                                                  Repeater->ProjectileVelocity, Repeater->ProjectileDamage,
+                                                  Repeater->ProjectileRadius, true))
+            {
+                Repeater->ShootTimer = 0.0F;
+                Repeater->IsInShootSequence = true;
+            }
+        }
+        else
+        {
+            Repeater->ShootTimer += DeltaTime;
+        }
+    }
+    else
+    {
+        if (Repeater->ShootTimer >= Repeater->ShootSequenceDeltaDelay)
+        {
+            GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
+                                              Repeater->ProjectileVelocity, Repeater->ProjectileDamage,
+                                              Repeater->ProjectileRadius, false);
+            Repeater->ShootTimer = 0.0F;
+            Repeater->IsInShootSequence = false;
+        }
+        else
+        {
+            Repeater->ShootTimer += DeltaTime;
+        }
+    }
+}
 
 internal void
 GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime)
@@ -201,33 +353,7 @@ GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* Platform
     {
         const u32 PlantIndex = (MouseCellIndexY * GardenGrid->CellCountX) + MouseCellIndexX;
         plant_entity* PlantEntity = GardenGrid->PlantEntities + PlantIndex;
-        if (PlantEntity->Type == PLANT_TYPE_NONE)
-        {
-            // if (PlatformState->Input->Keys[GAME_INPUT_KEY_F2].WasPressedThisFrame)
-            // {
-            //     // NOTE(Traian): "Plant" a sunflower.
-            //
-            //     PlantEntity->Type = PLANT_TYPE_SUNFLOWER;
-            //     PlantEntity->Health = PLANT_SUNFLOWER_HEALTH;
-            //     PlantEntity->Sunflower.GenerateDelayBase = PLANT_SUNFLOWER_GENERATE_SUN_DELAY_BASE;
-            //     PlantEntity->Sunflower.GenerateDelayRandomOffset = PLANT_SUNFLOWER_GENERATE_SUN_DELAY_RANDOM_OFFSET;
-            //     PlantEntity->Sunflower.SunRadius = PLANT_SUNFLOWER_SUN_RADIUS;
-            //     PlantEntity->Sunflower.SunAmount = PLANT_SUNFLOWER_SUN_AMOUNT;
-            //     PlantEntity->Sunflower.SunDecayDelay = PLANT_SUNFLOWER_SUN_DECAY;
-            // }
-            // else if (PlatformState->Input->Keys[GAME_INPUT_KEY_F3].WasPressedThisFrame)
-            // {
-            //    // NOTE(Traian): "Plant" a peashooter.
-            //
-            //     PlantEntity->Type = PLANT_TYPE_PEASHOOTER;
-            //     PlantEntity->Health = PLANT_PEASHOOTER_HEALTH;
-            //     PlantEntity->Peashooter.ShootDelay = PLANT_PEASHOOTER_SHOOT_DELAY;
-            //     PlantEntity->Peashooter.ProjectileDamage = PLANT_PEASHOOTER_PROJECTILE_DAMAGE;
-            //     PlantEntity->Peashooter.ProjectileVelocity = PLANT_PEASHOOTER_PROJECTILE_VELOCITY;
-            //     PlantEntity->Peashooter.ProjectileRadius = PLANT_PEASHOOTER_PROJECTILE_RADIUS;
-            // }
-        }
-        else
+        if (PlantEntity->Type != PLANT_TYPE_NONE)
         {
             if (PlatformState->Input->Keys[GAME_INPUT_KEY_F1].WasPressedThisFrame)
             {
@@ -263,83 +389,20 @@ GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* Platform
                 {
                     case PLANT_TYPE_SUNFLOWER:
                     {
-                        plant_entity_sunflower* Sunflower = &PlantEntity->Sunflower;
-                        const f32 DelayOffset = Random_RangeF32(&GardenGrid->RandomSeries,
-                                                                -Sunflower->GenerateDelayRandomOffset,
-                                                                +Sunflower->GenerateDelayRandomOffset);
-                        if (Sunflower->GenerateTimer >= Sunflower->GenerateDelayBase + DelayOffset)
-                        {
-                            // NOTE(Traian): Reset the generate timer.
-                            Sunflower->GenerateTimer = 0.0F;
-
-                            // NOTE(Traian): Determine the random offset to add to the sun spawn location.
-                            const f32 MinSpawnDistance = 0.5F;
-                            const f32 MaxSpawnDistance = 1.0F;
-                            vec2 SunSpawnOffset = {};
-                            SunSpawnOffset.X = Random_SignF32(&GardenGrid->RandomSeries) *
-                                               Random_RangeF32(&GardenGrid->RandomSeries, MinSpawnDistance, MaxSpawnDistance);
-                            SunSpawnOffset.Y = Random_SignF32(&GardenGrid->RandomSeries) *
-                                               Random_RangeF32(&GardenGrid->RandomSeries, MinSpawnDistance, MaxSpawnDistance);
-                            vec2 Position = CellPoint + SunSpawnOffset;
-                            Position.X = Clamp(Position.X,
-                                               GardenGrid->MinPoint.X + Sunflower->SunRadius,
-                                               GardenGrid->MaxPoint.X - Sunflower->SunRadius);
-                            Position.Y = Clamp(Position.Y,
-                                               GardenGrid->MinPoint.Y + Sunflower->SunRadius,
-                                               GardenGrid->MaxPoint.Y - Sunflower->SunRadius);
-
-                            // NOTE(Traian): Push a new sun "projectile" to the entity buffer.
-                            projectile_entity* SunProjectile = GameGardenGrid_PushProjectileEntity(GardenGrid,
-                            																	   PROJECTILE_TYPE_SUN,
-                                                                                         		   CellIndexY);
-                            SunProjectile->Position = Position;
-                            SunProjectile->Sun.Radius = Sunflower->SunRadius;
-                            SunProjectile->Sun.SunAmount = Sunflower->SunAmount;
-                            SunProjectile->Sun.DecayDelay = Sunflower->SunDecayDelay;
-                        }
-                        else
-                        {
-                            Sunflower->GenerateTimer += DeltaTime;
-                        }
                     }
                     break;
 
                     case PLANT_TYPE_PEASHOOTER:
                     {
-                        plant_entity_peashooter* Peashooter = &PlantEntity->Peashooter;
-                        if (Peashooter->ShootTimer >= Peashooter->ShootDelay)
-                        {
-                            b8 AreZombiesOnTheLane = false;
-                            for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
-                            {
-                                const zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
-                                if (ZombieEntity->CellIndexY == CellIndexY)
-                                {
-                                    AreZombiesOnTheLane = true;
-                                    break;
-                                }
-                            }
+                        GameGardenGrid_UpdatePlantPeashooter(GameState, PlatformState, DeltaTime,
+                                                             CellIndexX, CellIndexY, CellPoint, PlantEntity);
+                    }
+                    break;
 
-                            if (AreZombiesOnTheLane)
-                            {
-                                // NOTE(Traian): Reset the shoot timer.
-                                Peashooter->ShootTimer = 0.0F;
-                                
-                                // NOTE(Traian): Push a new pea "projectile" to the entity buffer.
-                                projectile_entity* PeaProjectile = GameGardenGrid_PushProjectileEntity(GardenGrid,
-                                																	   PROJECTILE_TYPE_PEA,
-                                                                                             		   CellIndexY);
-                                PeaProjectile->Position.X = CellPoint.X + PLANT_PEASHOOTER_SHOOT_POINT_OFFSET_X;
-                                PeaProjectile->Position.Y = CellPoint.Y + PLANT_PEASHOOTER_SHOOT_POINT_OFFSET_Y;
-                                PeaProjectile->Pea.Velocity = Peashooter->ProjectileVelocity;
-                                PeaProjectile->Pea.Damage = Peashooter->ProjectileDamage;
-                                PeaProjectile->Pea.Radius = Peashooter->ProjectileRadius;
-                            }
-                        }
-                        else
-                        {
-                            Peashooter->ShootTimer += DeltaTime;
-                        }
+                    case PLANT_TYPE_REPEATER:
+                    {
+                        GameGardenGrid_UpdatePlantRepeater(GameState, PlatformState, DeltaTime,
+                                                                   CellIndexX, CellIndexY, CellPoint, PlantEntity);
                     }
                     break;
                 }
@@ -644,12 +707,31 @@ GameGardenGrid_RenderPlants(game_state* GameState, game_platform_state* Platform
 
                 case PLANT_TYPE_PEASHOOTER:
                 {
-                    const vec2 Dimensions = Vec2(PLANT_SUNFLOWER_DIMENSIONS_X, PLANT_SUNFLOWER_DIMENSIONS_Y);
+                    const vec2 Dimensions = Vec2(PLANT_PEASHOOTER_DIMENSIONS_X, PLANT_PEASHOOTER_DIMENSIONS_Y);
                     const vec2 MinPoint = CellPoint - (0.5F * Dimensions) +
-                                          Vec2(PLANT_SUNFLOWER_RENDER_OFFSET_X, PLANT_SUNFLOWER_RENDER_OFFSET_Y);
+                                          Vec2(PLANT_PEASHOOTER_RENDER_OFFSET_X, PLANT_PEASHOOTER_RENDER_OFFSET_Y);
                     const vec2 MaxPoint = MinPoint + Dimensions;
 
                     asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_PEASHOOTER);
+                    Renderer_PushPrimitive(&GameState->Renderer,
+                                           Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
+                                           Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
+                                           RenderZOffset, Color4(1.0F),
+                                           Vec2(0.0F), Vec2(1.0F),
+                                           &TextureAsset->Texture.RendererTexture);
+                }
+                break;
+
+                case PLANT_TYPE_REPEATER:
+                {
+                    const vec2 Dimensions = Vec2(PLANT_REPEATER_DIMENSIONS_X,
+                                                 PLANT_REPEATER_DIMENSIONS_Y);
+                    const vec2 RenderOffset = Vec2(PLANT_REPEATER_RENDER_OFFSET_X,
+                                                   PLANT_REPEATER_RENDER_OFFSET_Y);
+                    const vec2 MinPoint = CellPoint - (0.5F * Dimensions) + RenderOffset;
+                    const vec2 MaxPoint = MinPoint + Dimensions;
+
+                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_REPEATER);
                     Renderer_PushPrimitive(&GameState->Renderer,
                                            Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
                                            Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),

@@ -324,56 +324,34 @@ BAP_GenerateAssetPack(bap_asset_pack* AssetPack, const char* AssetRootDirectoryP
 {
     ZERO_STRUCT_POINTER(AssetPack);
 
-    AssetPack->TextureCount = 6;
+    AssetPack->TextureCount = 7;
     AssetPack->Textures = (bap_asset_texture*)malloc(AssetPack->TextureCount * sizeof(bap_asset_texture));
     ZERO_STRUCT_ARRAY(AssetPack->Textures, AssetPack->TextureCount);
+    u32 CurrentTextureIndex = 0;
 
-    {
-        const char* FileName = "plant_sunflower.png";
-        const memory_size BytesPerPixel = 4;
-        bap_texture_buffer TextureBuffer = BAP_LoadTextureFromFile(AssetRootDirectoryPath, FileName, BytesPerPixel);
-        AssetPack->Textures[0].AssetID = GAME_ASSET_ID_PLANT_SUNFLOWER;
-        AssetPack->Textures[0].TextureBuffer = TextureBuffer;
+#define BAP_ADD_TEXTURE(FileName, AssetIDValue)                                                                         \
+    {                                                                                                                   \
+        const memory_size BytesPerPixel = 4;                                                                            \
+        bap_texture_buffer TextureBuffer = BAP_LoadTextureFromFile(AssetRootDirectoryPath, FileName, BytesPerPixel);    \
+        AssetPack->Textures[CurrentTextureIndex].AssetID = AssetIDValue;                                                \
+        AssetPack->Textures[CurrentTextureIndex].TextureBuffer = TextureBuffer;                                         \
+        ++CurrentTextureIndex;                                                                                          \
     }
-    {
-        const char* FileName = "plant_peashooter.png";
-        const memory_size BytesPerPixel = 4;
-        bap_texture_buffer TextureBuffer = BAP_LoadTextureFromFile(AssetRootDirectoryPath, FileName, BytesPerPixel);
-        AssetPack->Textures[1].AssetID = GAME_ASSET_ID_PLANT_PEASHOOTER;
-        AssetPack->Textures[1].TextureBuffer = TextureBuffer;
-    }
-    {
-        const char* FileName = "projectile_sun.png";
-        const memory_size BytesPerPixel = 4;
-        bap_texture_buffer TextureBuffer = BAP_LoadTextureFromFile(AssetRootDirectoryPath, FileName, BytesPerPixel);
-        AssetPack->Textures[2].AssetID = GAME_ASSET_ID_PROJECTILE_SUN;
-        AssetPack->Textures[2].TextureBuffer = TextureBuffer;
-    }
-    {
-        const char* FileName = "projectile_pea.png";
-        const memory_size BytesPerPixel = 4;
-        bap_texture_buffer TextureBuffer = BAP_LoadTextureFromFile(AssetRootDirectoryPath, FileName, BytesPerPixel);
-        AssetPack->Textures[3].AssetID = GAME_ASSET_ID_PROJECTILE_PEA;
-        AssetPack->Textures[3].TextureBuffer = TextureBuffer;
-    }    
-    {
-        const char* FileName = "zombie_normal.png";
-        const memory_size BytesPerPixel = 4;
-        bap_texture_buffer TextureBuffer = BAP_LoadTextureFromFile(AssetRootDirectoryPath, FileName, BytesPerPixel);
-        AssetPack->Textures[4].AssetID = GAME_ASSET_ID_ZOMBIE_NORMAL;
-        AssetPack->Textures[4].TextureBuffer = TextureBuffer;
-    }
-    {
-        const char* FileName = "ui_seed_packet.png";
-        const memory_size BytesPerPixel = 4;
-        bap_texture_buffer TextureBuffer = BAP_LoadTextureFromFile(AssetRootDirectoryPath, FileName, BytesPerPixel);
-        AssetPack->Textures[5].AssetID = GAME_ASSET_ID_UI_SEED_PACKET;
-        AssetPack->Textures[5].TextureBuffer = TextureBuffer;
-    }
+
+    BAP_ADD_TEXTURE("plant_sunflower.png", GAME_ASSET_ID_PLANT_SUNFLOWER);
+    BAP_ADD_TEXTURE("plant_peashooter.png", GAME_ASSET_ID_PLANT_PEASHOOTER);
+    BAP_ADD_TEXTURE("plant_repeater.png", GAME_ASSET_ID_PLANT_REPEATER);
+    BAP_ADD_TEXTURE("projectile_sun.png", GAME_ASSET_ID_PROJECTILE_SUN);
+    BAP_ADD_TEXTURE("projectile_pea.png", GAME_ASSET_ID_PROJECTILE_PEA);
+    BAP_ADD_TEXTURE("zombie_normal.png", GAME_ASSET_ID_ZOMBIE_NORMAL);
+    BAP_ADD_TEXTURE("ui_seed_packet.png", GAME_ASSET_ID_UI_SEED_PACKET);
+
+#undef BAP_ADD_TEXTURE
 
     AssetPack->FontCount = 1;
     AssetPack->Fonts = (bap_asset_font*)malloc(AssetPack->FontCount * sizeof(bap_asset_font));
     ZERO_STRUCT_ARRAY(AssetPack->Fonts, AssetPack->FontCount);
+    u32 CurrentFontIndex = 0;
 
     {
         const char* FileName = "comic.ttf";
@@ -381,9 +359,13 @@ BAP_GenerateAssetPack(bap_asset_pack* AssetPack, const char* AssetRootDirectoryP
         const char Codepoints[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
         bap_font_buffer FontBuffer = BAP_LoadFontFromFile(AssetRootDirectoryPath, FileName, Height,
                                                           Codepoints, sizeof(Codepoints));
-        AssetPack->Fonts[0].AssetID = GAME_ASSET_ID_FONT_COMIC_SANS;
-        AssetPack->Fonts[0].FontBuffer = FontBuffer;
+        AssetPack->Fonts[CurrentFontIndex].AssetID = GAME_ASSET_ID_FONT_COMIC_SANS;
+        AssetPack->Fonts[CurrentFontIndex].FontBuffer = FontBuffer;
+        ++CurrentFontIndex;
     }
+
+    ASSERT(CurrentTextureIndex == AssetPack->TextureCount);
+    ASSERT(CurrentFontIndex == AssetPack->FontCount);
 }
 
 //====================================================================================================================//

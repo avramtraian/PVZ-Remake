@@ -35,6 +35,10 @@ GamePlantSelector_Initialize(game_state* GameState)
     PlantSelector->SeedPackets[1].PlantType = PLANT_TYPE_PEASHOOTER;
     PlantSelector->SeedPackets[1].SunCost = PLANT_PEASHOOTER_SUN_COST;
     PlantSelector->SeedPackets[1].CooldownDelay = PLANT_PEASHOOTER_PLANT_COOLDOWN_DELAY;
+
+    PlantSelector->SeedPackets[2].PlantType = PLANT_TYPE_REPEATER;
+    PlantSelector->SeedPackets[2].SunCost = PLANT_REPEATER_SUN_COST;
+    PlantSelector->SeedPackets[2].CooldownDelay = PLANT_REPEATER_PLANT_COOLDOWN_DELAY;
 }
 
 //====================================================================================================================//
@@ -138,6 +142,20 @@ GamePLantSelector_PlantSeedPacket(game_state* GameState, vec2 GameMousePosition)
                     PlantEntity->Peashooter.ProjectileDamage = PLANT_PEASHOOTER_PROJECTILE_DAMAGE;
                     PlantEntity->Peashooter.ProjectileVelocity = PLANT_PEASHOOTER_PROJECTILE_VELOCITY;
                     PlantEntity->Peashooter.ProjectileRadius = PLANT_PEASHOOTER_PROJECTILE_RADIUS;
+                }
+                break;
+
+                case PLANT_TYPE_REPEATER:
+                {
+                    // NOTE(Traian): "Plant" a repeater.
+
+                    PlantEntity->Type = PLANT_TYPE_REPEATER;
+                    PlantEntity->Health = PLANT_REPEATER_HEALTH;
+                    PlantEntity->Repeater.ShootSequenceDelay = PLANT_REPEATER_SHOOT_SEQUENCE_DELAY;
+                    PlantEntity->Repeater.ShootSequenceDeltaDelay = PLANT_REPEATER_SHOOT_SEQUENCE_DELTA_DELAY;
+                    PlantEntity->Repeater.ProjectileDamage = PLANT_REPEATER_PROJECTILE_DAMAGE;
+                    PlantEntity->Repeater.ProjectileVelocity = PLANT_REPEATER_PROJECTILE_VELOCITY;
+                    PlantEntity->Repeater.ProjectileRadius = PLANT_REPEATER_PROJECTILE_RADIUS;                    
                 }
                 break;
             }
@@ -288,18 +306,20 @@ GamePlantSelector_Update(game_state* GameState, game_platform_state* PlatformSta
 //------------------------------------------------------ RENDER ------------------------------------------------------//
 //====================================================================================================================//
 
-internal const f32 PLANT_SELECTOR_FRAME_OFFSET_Z                        = 1.0F;
-internal const f32 PLANT_SELECTOR_SEED_PACKET_BACKGROUND_OFFSET_Z       = 1.0F;
-internal const f32 PLANT_SELECTOR_SEED_PACKET_THUMBNAIL_OFFSET_Z        = 2.0F;
-internal const f32 PLANT_SELECTOR_SEED_PACKET_COOLDOWN_COVER_OFFSET_Z   = 3.0F;
-internal const f32 PLANT_SELECTOR_SEED_PACKET_COST_OFFSET_Z             = 4.0F;
-internal const f32 PLANT_SELECTOR_PLANT_PREVIEW_OFFSET_Z                = 10.0F;
+internal const f32 PLANT_SELECTOR_FRAME_OFFSET_Z                            = 1.0F;
+internal const f32 PLANT_SELECTOR_SEED_PACKET_BACKGROUND_OFFSET_Z           = 1.0F;
+internal const f32 PLANT_SELECTOR_SEED_PACKET_THUMBNAIL_OFFSET_Z            = 2.0F;
+internal const f32 PLANT_SELECTOR_SEED_PACKET_COOLDOWN_COVER_OFFSET_Z       = 3.0F;
+internal const f32 PLANT_SELECTOR_SEED_PACKET_COST_OFFSET_Z                 = 4.0F;
+internal const f32 PLANT_SELECTOR_PLANT_PREVIEW_OFFSET_Z                    = 10.0F;
 
-internal const color4 PLANT_SELECTOR_FRAME_BORDER_COLOR                 = Color4_FromLinear(LinearColor(80, 50, 10));
-internal const color4 PLANT_SELECTOR_FRAME_BACKGROUND_COLOR             = Color4_FromLinear(LinearColor(110, 80, 40));
-internal const color4 PLANT_SELECTOR_SEED_PACKET_COST_TEXT_COLOR        = Color4_FromLinear(LinearColor(15, 10, 5));
-internal const color4 PLANT_SELECTOR_SEED_PACKET_UNAVAILABLE_TINT_COLOR = Color4(0.5F, 0.5F, 0.5F, 1.0F);
-internal const color4 PLANT_SELECTOR_SEED_PACKET_COOLDOWN_COVER_COLOR   = Color4(0.0F, 0.0F, 0.0F, 0.3F);
+internal const color4 PLANT_SELECTOR_FRAME_BORDER_COLOR                     = Color4_FromLinear(LinearColor(80, 50, 10));
+internal const color4 PLANT_SELECTOR_FRAME_BACKGROUND_COLOR                 = Color4_FromLinear(LinearColor(110, 80, 40));
+internal const color4 PLANT_SELECTOR_SEED_PACKET_COST_TEXT_COLOR            = Color4_FromLinear(LinearColor(15, 10, 5));
+internal const color4 PLANT_SELECTOR_SEED_PACKET_SELECTED_TINT_COLOR        = Color4(0.5F, 0.5F, 0.5F, 1.0F);
+internal const color4 PLANT_SELECTOR_SEED_PACKET_TOO_EXPENSIVE_TINT_COLOR   = Color4(0.5F, 0.5F, 0.5F, 1.0F);
+internal const color4 PLANT_SELECTOR_SEED_PACKET_IN_COOLDOWN_TINT_COLOR     = Color4(0.7F, 0.7F, 0.7F, 1.0F);
+internal const color4 PLANT_SELECTOR_SEED_PACKET_COOLDOWN_COVER_COLOR       = Color4(0.0F, 0.0F, 0.0F, 0.3F);
 
 internal void
 GamePlantSelector_RenderSeedPacket(game_state* GameState, u32 SeedPacketIndex)
@@ -314,10 +334,17 @@ GamePlantSelector_RenderSeedPacket(game_state* GameState, u32 SeedPacketIndex)
     //
 
     color4 TintColor = Color4(1.0F);
-    if ((PlantSelector->HasSeedPacketSelected && (PlantSelector->SelectedSeedPacketIndex == SeedPacketIndex)) ||
-        (GameState->SunCounter.SunAmount < SeedPacket->SunCost))
+    if (PlantSelector->HasSeedPacketSelected && (PlantSelector->SelectedSeedPacketIndex == SeedPacketIndex))
     {
-        TintColor = PLANT_SELECTOR_SEED_PACKET_UNAVAILABLE_TINT_COLOR;
+        TintColor = PLANT_SELECTOR_SEED_PACKET_SELECTED_TINT_COLOR;
+    }
+    else if (GameState->SunCounter.SunAmount < SeedPacket->SunCost)
+    {
+        TintColor = PLANT_SELECTOR_SEED_PACKET_TOO_EXPENSIVE_TINT_COLOR;
+    }
+    else if (SeedPacket->IsInCooldown && SeedPacket->CooldownDelay > 0.0F)
+    {
+        TintColor = PLANT_SELECTOR_SEED_PACKET_IN_COOLDOWN_TINT_COLOR;
     }
 
     asset* SeedPacketTexture = Asset_Get(&GameState->Assets, GAME_ASSET_ID_UI_SEED_PACKET);
@@ -350,6 +377,11 @@ GamePlantSelector_RenderSeedPacket(game_state* GameState, u32 SeedPacketIndex)
         case PLANT_TYPE_PEASHOOTER:
         {
             ThumbnailTexture = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_PEASHOOTER);
+        }
+        break;
+        case PLANT_TYPE_REPEATER:
+        {
+            ThumbnailTexture = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_REPEATER);
         }
         break;
     }
@@ -459,6 +491,16 @@ GamePlantSelector_RenderPlantPreview(game_state* GameState, vec2 GameMousePositi
             PreviewMinPoint = PlantSelector->PlantPreviewCenterPosition - (0.5F * Dimensions) + RenderOffset;
             PreviewMaxPoint = PlantSelector->PlantPreviewCenterPosition + (0.5F * Dimensions) + RenderOffset;
             PreviewTextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_PEASHOOTER);
+        }
+        break;
+
+        case PLANT_TYPE_REPEATER:
+        {
+            const vec2 Dimensions = Vec2(PLANT_REPEATER_DIMENSIONS_X, PLANT_REPEATER_DIMENSIONS_Y);
+            const vec2 RenderOffset = Vec2(PLANT_REPEATER_RENDER_OFFSET_X, PLANT_REPEATER_RENDER_OFFSET_Y);
+            PreviewMinPoint = PlantSelector->PlantPreviewCenterPosition - (0.5F * Dimensions) + RenderOffset;
+            PreviewMaxPoint = PlantSelector->PlantPreviewCenterPosition + (0.5F * Dimensions) + RenderOffset;
+            PreviewTextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_REPEATER);
         }
         break;
     }

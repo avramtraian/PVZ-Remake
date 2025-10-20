@@ -21,11 +21,26 @@ struct game_camera
     u32     ViewportPixelCountY;
 };
 
+//
+// TODO(Traian): Currently, there is no centralized system that can query generic parameters about the plant. This
+// means that there are a lot of places in the code where we switch over all possible plant types to determine what
+// to do next. This is obiously very bad from a matainability point of view! We iterate over all possible types in
+// the following code sections:
+//   - In 'GameGardenGrid_UpdatePlants', when updating the plants;
+//   - In 'GameGardenGrid_RenderPlants', when rendering the plants;
+//   - In 'GamePLantSelector_PlantSeedPacket', when we plant a new plant from the selector into the grid;
+//   - In 'GamePlantSelector_RenderSeedPacket', when we render the seed packet thumbnai;
+//   - In 'GamePlantSelector_RenderPlantPreview', when we render the plant preview.
+// In the future, we would ideally only need a switch/dynamic dispatch in 'GameGardenGrid_UpdatePlants'! In the mean
+// time, make sure to update all switches in all of the above mentioned sections when adding a new plant type...
+//
+
 enum plant_type : u16
 {
     PLANT_TYPE_NONE = 0,
     PLANT_TYPE_SUNFLOWER,
     PLANT_TYPE_PEASHOOTER,
+    PLANT_TYPE_REPEATER,
 };
 
 struct plant_entity_sunflower
@@ -47,6 +62,17 @@ struct plant_entity_peashooter
     f32 ProjectileRadius;
 };
 
+struct plant_entity_repeater
+{
+    f32 ShootSequenceDelay;
+    f32 ShootSequenceDeltaDelay;
+    f32 ShootTimer;
+    b8  IsInShootSequence;
+    f32 ProjectileDamage;
+    f32 ProjectileVelocity;
+    f32 ProjectileRadius;
+};
+
 struct plant_entity
 {
     // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
@@ -59,6 +85,7 @@ struct plant_entity
     {
         plant_entity_sunflower  Sunflower;
         plant_entity_peashooter Peashooter;
+        plant_entity_repeater   Repeater;
     };
 };
 

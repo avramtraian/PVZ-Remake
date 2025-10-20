@@ -31,8 +31,6 @@ ECHO Compiling game source...
 cl %CommonCompilerFlags% %CommonCompilerDefines% %SourceFiles% /link %CommonLinkerFlags% user32.lib gdi32.lib /OUT:PVZ-Remake.exe
 ECHO Done.
 
-
-
 ECHO.
 ECHO Compiling tools source...
 cl %CommonCompilerFlags% %CommonCompilerDefines% ../source/tools/pvzt_bap.cpp /link %CommonLinkerFlags% /OUT:bap.exe

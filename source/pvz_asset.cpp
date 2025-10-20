@@ -185,6 +185,11 @@ Asset_LoadSync(game_assets* GameAssets, game_asset_id AssetID)
     asset* Asset = &GameAssets->Assets[AssetID];
     const asset_state InitialAssetState = Asset->State;
 
+    if (Asset->Type == ASSET_TYPE_UNKNOWN)
+    {
+        PANIC("Trying to load an asset that is not present in the asset pack!");
+    }
+
     if (Asset->State == ASSET_STATE_UNLOADED)
     {
         //
