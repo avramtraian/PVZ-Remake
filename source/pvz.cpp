@@ -41,6 +41,7 @@ enum plant_type : u16
     PLANT_TYPE_SUNFLOWER,
     PLANT_TYPE_PEASHOOTER,
     PLANT_TYPE_REPEATER,
+    PLANT_TYPE_TORCHWOOD,
 };
 
 struct plant_entity_sunflower
@@ -73,6 +74,11 @@ struct plant_entity_repeater
     f32 ProjectileRadius;
 };
 
+struct plant_entity_torchwood
+{
+    f32 DamageMultiplier;
+};
+
 struct plant_entity
 {
     // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
@@ -86,6 +92,7 @@ struct plant_entity
         plant_entity_sunflower  Sunflower;
         plant_entity_peashooter Peashooter;
         plant_entity_repeater   Repeater;
+        plant_entity_torchwood  Torchwood;
     };
 };
 
@@ -135,11 +142,18 @@ struct projectile_entity_sun
     f32     DecayTimer;
 };
 
+enum pea_type : u8
+{
+    PEA_TYPE_NORMAL = 0,
+    PEA_TYPE_FIRE,
+};
+
 struct projectile_entity_pea
 {
-    f32 Radius;
-    f32 Velocity;
-    f32 Damage;
+    pea_type    Type;
+    f32         Radius;
+    f32         Velocity;
+    f32         Damage;
 };
 
 struct projectile_entity

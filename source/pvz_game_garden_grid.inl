@@ -172,6 +172,7 @@ GameGardenGrid_RemovePendingDestroyEntities(void* EntityBuffer, memory_size Enti
 
     return EntityCount;
 }
+
 internal void
 GameGardenGrid_UpdatePlantSunflower(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
                                     u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
@@ -220,7 +221,7 @@ GameGardenGrid_UpdatePlantSunflower(game_state* GameState, game_platform_state* 
 
 internal inline b8
 GameGardenGrid_ShootPeaProjectile(game_garden_grid* GardenGrid, u32 CellIndexY, vec2 Position,
-                                  f32 Velocity, f32 Damage, f32 Radius,
+                                  f32 Velocity, f32 Damage, f32 Radius, pea_type PeaType,
                                   b8 ShootOnlyWhenThereAreZombiesOnTheLane)
 {
     b8 ShouldShoot = true;
@@ -245,6 +246,7 @@ GameGardenGrid_ShootPeaProjectile(game_garden_grid* GardenGrid, u32 CellIndexY, 
                                                                                PROJECTILE_TYPE_PEA,
                                                                                CellIndexY);
         PeaProjectile->Position = Position;
+        PeaProjectile->Pea.Type = PeaType;
         PeaProjectile->Pea.Velocity = Velocity;
         PeaProjectile->Pea.Damage = Damage;
         PeaProjectile->Pea.Radius = Radius;
@@ -267,7 +269,7 @@ GameGardenGrid_UpdatePlantPeashooter(game_state* GameState, game_platform_state*
 
         if (GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
                                               Peashooter->ProjectileVelocity, Peashooter->ProjectileDamage,
-                                              Peashooter->ProjectileRadius, true))
+                                              Peashooter->ProjectileRadius, PEA_TYPE_NORMAL, true))
         {
             // NOTE(Traian): Reset the shoot timer.
             Peashooter->ShootTimer = 0.0F;
@@ -281,7 +283,7 @@ GameGardenGrid_UpdatePlantPeashooter(game_state* GameState, game_platform_state*
 
 internal void
 GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
-                                           u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
+                                   u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
 {
     game_garden_grid* GardenGrid = &GameState->GardenGrid;
     plant_entity_repeater* Repeater = &PlantEntity->Repeater;
@@ -297,7 +299,7 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
 
             if (GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
                                                   Repeater->ProjectileVelocity, Repeater->ProjectileDamage,
-                                                  Repeater->ProjectileRadius, true))
+                                                  Repeater->ProjectileRadius, PEA_TYPE_NORMAL, true))
             {
                 Repeater->ShootTimer = 0.0F;
                 Repeater->IsInShootSequence = true;
@@ -314,7 +316,7 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
         {
             GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
                                               Repeater->ProjectileVelocity, Repeater->ProjectileDamage,
-                                              Repeater->ProjectileRadius, false);
+                                              Repeater->ProjectileRadius, PEA_TYPE_NORMAL, false);
             Repeater->ShootTimer = 0.0F;
             Repeater->IsInShootSequence = false;
         }
@@ -323,6 +325,14 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
             Repeater->ShootTimer += DeltaTime;
         }
     }
+}
+
+internal void
+GameGardenGrid_UpdatePlantTorchwood(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                    u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    plant_entity_torchwood* Torchwood = &PlantEntity->Torchwood;
 }
 
 internal void
@@ -389,6 +399,8 @@ GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* Platform
                 {
                     case PLANT_TYPE_SUNFLOWER:
                     {
+                        GameGardenGrid_UpdatePlantSunflower(GameState, PlatformState, DeltaTime,
+                                                            CellIndexX, CellIndexY, CellPoint, PlantEntity);
                     }
                     break;
 
@@ -403,6 +415,13 @@ GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* Platform
                     {
                         GameGardenGrid_UpdatePlantRepeater(GameState, PlatformState, DeltaTime,
                                                                    CellIndexX, CellIndexY, CellPoint, PlantEntity);
+                    }
+                    break;
+
+                    case PLANT_TYPE_TORCHWOOD:
+                    {
+                        GameGardenGrid_UpdatePlantTorchwood(GameState, PlatformState, DeltaTime,
+                                                            CellIndexX, CellIndexY, CellPoint, PlantEntity);
                     }
                     break;
                 }
@@ -565,7 +584,30 @@ GameGardenGrid_UpdateProjectiles(game_state* GameState, game_platform_state* Pla
                     // NOTE(Traian): The projectile has went out of range.
                     ProjectileEntity->IsPendingDestroy = true;
                 }
-                else
+
+                if (!ProjectileEntity->IsPendingDestroy)
+                {
+                    const s32 GridCellIndexX = GameGardenGrid_GetCellIndexX(GardenGrid, ProjectileEntity->Position.X);
+                    const s32 GridCellIndexY = GameGardenGrid_GetCellIndexY(GardenGrid, ProjectileEntity->Position.Y);
+                    if ((0 <= GridCellIndexX && GridCellIndexX < GardenGrid->CellCountX) &&
+                        (0 <= GridCellIndexY && GridCellIndexY < GardenGrid->CellCountY))
+                    {
+                        const u32 PlantEntityIndex = (GridCellIndexY * GardenGrid->CellCountX) + GridCellIndexX;
+                        plant_entity* PlantEntity = GardenGrid->PlantEntities + PlantEntityIndex;
+                        
+                        const f32 CellPointX = GameGardenGrid_GetCellPositionX(GardenGrid, GridCellIndexX);
+                        if (PlantEntity->Type == PLANT_TYPE_TORCHWOOD && ProjectileEntity->Position.X >= CellPointX)
+                        {
+                            if (Pea->Type != PEA_TYPE_FIRE)
+                            {
+                                Pea->Damage *= PlantEntity->Torchwood.DamageMultiplier;
+                                Pea->Type = PEA_TYPE_FIRE;
+                            }
+                        }
+                    }
+                }
+
+                if (!ProjectileEntity->IsPendingDestroy)
                 {
                     zombie_entity* ClosestZombieEntity = NULL;
                     f32 ClosestZombieDistance;
@@ -740,6 +782,25 @@ GameGardenGrid_RenderPlants(game_state* GameState, game_platform_state* Platform
                                            &TextureAsset->Texture.RendererTexture);
                 }
                 break;
+
+                case PLANT_TYPE_TORCHWOOD:
+                {
+                    const vec2 Dimensions = Vec2(PLANT_TORCHWOOD_DIMENSIONS_X,
+                                                 PLANT_TORCHWOOD_DIMENSIONS_Y);
+                    const vec2 RenderOffset = Vec2(PLANT_TORCHWOOD_RENDER_OFFSET_X,
+                                                   PLANT_TORCHWOOD_RENDER_OFFSET_Y);
+                    const vec2 MinPoint = CellPoint - (0.5F * Dimensions) + RenderOffset;
+                    const vec2 MaxPoint = MinPoint + Dimensions;
+
+                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_TORCHWOOD);
+                    Renderer_PushPrimitive(&GameState->Renderer,
+                                           Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
+                                           Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
+                                           RenderZOffset, Color4(1.0F),
+                                           Vec2(0.0F), Vec2(1.0F),
+                                           &TextureAsset->Texture.RendererTexture);
+                }
+                break;
             }
         }
     }
@@ -824,10 +885,27 @@ GameGardenGrid_RenderProjectiles(game_state* GameState, game_platform_state* Pla
                 case PROJECTILE_TYPE_PEA:
                 {
                     const projectile_entity_pea* Pea = &ProjectileEntity->Pea;
-                    const vec2 MinPoint = ProjectileEntity->Position - (0.5F * Vec2(Pea->Radius));
-                    const vec2 MaxPoint = MinPoint + Vec2(Pea->Radius);
 
-                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_PEA);
+                    vec2 Dimensions = Vec2(Pea->Radius);
+                    vec2 MinPoint = {};
+                    vec2 MaxPoint = {};
+
+                    asset* TextureAsset = NULL;
+                    if (Pea->Type == PEA_TYPE_NORMAL)
+                    {
+                        MinPoint = ProjectileEntity->Position - (0.5F * Dimensions);
+                        MaxPoint = MinPoint + Dimensions;
+                        TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_PEA);
+                    }
+                    else if (Pea->Type == PEA_TYPE_FIRE)
+                    {
+                        Dimensions.X *= PROJECTILE_PEA_FIRE_DIMENSIONS_MULTIPLIER_X;
+                        Dimensions.Y *= PROJECTILE_PEA_FIRE_DIMENSIONS_MULTIPLIER_Y;
+                        MinPoint = ProjectileEntity->Position - (0.5F * Dimensions);
+                        MaxPoint = MinPoint + Dimensions;
+                        TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_PEA_FIRE);
+                    }
+                    
                     Renderer_PushPrimitive(&GameState->Renderer,
                                            Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
                                            Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),

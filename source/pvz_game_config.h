@@ -45,14 +45,26 @@
 #define PLANT_REPEATER_SHOOT_POINT_OFFSET_X                 (PLANT_PEASHOOTER_SHOOT_POINT_OFFSET_X)
 #define PLANT_REPEATER_SHOOT_POINT_OFFSET_Y                 (PLANT_PEASHOOTER_SHOOT_POINT_OFFSET_Y)
 
+#define PLANT_TORCHWOOD_SUN_COST                            (150)
+#define PLANT_TORCHWOOD_PLANT_COOLDOWN_DELAY                (3.0F)
+#define PLANT_TORCHWOOD_HEALTH                              (200.0F)
+#define PLANT_TORCHWOOD_DAMAGE_MULTIPLIER                   (2.0F)
+#define PLANT_TORCHWOOD_DIMENSIONS_X                        (0.7F)
+#define PLANT_TORCHWOOD_DIMENSIONS_Y                        (0.7F)
+#define PLANT_TORCHWOOD_RENDER_OFFSET_X                     (0.0F)
+#define PLANT_TORCHWOOD_RENDER_OFFSET_Y                     (0.0F)
+
 #define ZOMBIE_NORMAL_HEALTH                                (200.0F)
 #define ZOMBIE_NORMAL_VELOCITY                              (0.2F)
 #define ZOMBIE_NORMAL_ATTACK_DELAY                          (1.5F)
 #define ZOMBIE_NORMAL_ATTACK_DAMAGE                         (100.0)
 #define ZOMBIE_NORMAL_DIMENSIONS_X                          (0.8F)
-#define ZOMBIE_NORMAL_DIMENSIONS_Y                          (ZOMBIE_NORMAL_DIMENSIONS_X * 1.602F)
+#define ZOMBIE_NORMAL_DIMENSIONS_Y                          (1.28F)
 #define ZOMBIE_NORMAL_RENDER_OFFSET_X                       (0.0F)
 #define ZOMBIE_NORMAL_RENDER_OFFSET_Y                       (0.3F)
 
 #define PROJECTILE_SUN_RENDER_DIMENSIONS_MULTIPLIER_X       (1.3F)
 #define PROJECTILE_SUN_RENDER_DIMENSIONS_MULTIPLIER_Y       (1.3F)
+
+#define PROJECTILE_PEA_FIRE_DIMENSIONS_MULTIPLIER_X         (1.8F)
+#define PROJECTILE_PEA_FIRE_DIMENSIONS_MULTIPLIER_Y         (1.4F)

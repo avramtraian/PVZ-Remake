@@ -39,6 +39,10 @@ GamePlantSelector_Initialize(game_state* GameState)
     PlantSelector->SeedPackets[2].PlantType = PLANT_TYPE_REPEATER;
     PlantSelector->SeedPackets[2].SunCost = PLANT_REPEATER_SUN_COST;
     PlantSelector->SeedPackets[2].CooldownDelay = PLANT_REPEATER_PLANT_COOLDOWN_DELAY;
+
+    PlantSelector->SeedPackets[3].PlantType = PLANT_TYPE_TORCHWOOD;
+    PlantSelector->SeedPackets[3].SunCost = PLANT_TORCHWOOD_SUN_COST;
+    PlantSelector->SeedPackets[3].CooldownDelay = PLANT_TORCHWOOD_PLANT_COOLDOWN_DELAY;
 }
 
 //====================================================================================================================//
@@ -156,6 +160,16 @@ GamePLantSelector_PlantSeedPacket(game_state* GameState, vec2 GameMousePosition)
                     PlantEntity->Repeater.ProjectileDamage = PLANT_REPEATER_PROJECTILE_DAMAGE;
                     PlantEntity->Repeater.ProjectileVelocity = PLANT_REPEATER_PROJECTILE_VELOCITY;
                     PlantEntity->Repeater.ProjectileRadius = PLANT_REPEATER_PROJECTILE_RADIUS;                    
+                }
+                break;
+
+                case PLANT_TYPE_TORCHWOOD:
+                {
+                    // NOTE(Traian): "Plant" a torchwood.
+
+                    PlantEntity->Type = PLANT_TYPE_TORCHWOOD;
+                    PlantEntity->Health = PLANT_TORCHWOOD_HEALTH;
+                    PlantEntity->Torchwood.DamageMultiplier = PLANT_TORCHWOOD_DAMAGE_MULTIPLIER;
                 }
                 break;
             }
@@ -384,6 +398,11 @@ GamePlantSelector_RenderSeedPacket(game_state* GameState, u32 SeedPacketIndex)
             ThumbnailTexture = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_REPEATER);
         }
         break;
+        case PLANT_TYPE_TORCHWOOD:
+        {
+            ThumbnailTexture = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_TORCHWOOD);
+        }
+        break;
     }
 
     if (ThumbnailTexture)
@@ -501,6 +520,16 @@ GamePlantSelector_RenderPlantPreview(game_state* GameState, vec2 GameMousePositi
             PreviewMinPoint = PlantSelector->PlantPreviewCenterPosition - (0.5F * Dimensions) + RenderOffset;
             PreviewMaxPoint = PlantSelector->PlantPreviewCenterPosition + (0.5F * Dimensions) + RenderOffset;
             PreviewTextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_REPEATER);
+        }
+        break;
+
+        case PLANT_TYPE_TORCHWOOD:
+        {
+            const vec2 Dimensions = Vec2(PLANT_TORCHWOOD_DIMENSIONS_X, PLANT_TORCHWOOD_DIMENSIONS_Y);
+            const vec2 RenderOffset = Vec2(PLANT_TORCHWOOD_RENDER_OFFSET_X, PLANT_TORCHWOOD_RENDER_OFFSET_Y);
+            PreviewMinPoint = PlantSelector->PlantPreviewCenterPosition - (0.5F * Dimensions) + RenderOffset;
+            PreviewMaxPoint = PlantSelector->PlantPreviewCenterPosition + (0.5F * Dimensions) + RenderOffset;
+            PreviewTextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_TORCHWOOD);
         }
         break;
     }
