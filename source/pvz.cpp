@@ -91,6 +91,14 @@ struct plant_entity
     };
 };
 
+//
+// NOTE(Traian): ADDING A NEW ZOMBIE TYPE!
+//
+// - 'Game_SetDefaultConfiguration', where you *must* define the zombie configuration structure.
+// - 'GameGardenGrid_UpdateZombies', which (optionally) updates the zombie logic.
+// - 'GameGardenGrid_SpawnZombie', which (optionally) configures all parameters specific to that type.
+//
+
 enum zombie_type : u16
 {
     ZOMBIE_TYPE_NONE = 0,
@@ -115,7 +123,6 @@ struct zombie_entity
     u8                          Reserved_;
     u32                         CellIndexY;
     vec2                        Position;
-    vec2                        Dimensions;
     f32                         Health;
     union
     {
@@ -257,10 +264,11 @@ struct game_plant_config
 
 struct game_zombie_config
 {
-    f32     Health;
-    vec2    Dimensions;
-    vec2    RenderScale;
-    vec2    RenderOffset;
+    f32             Health;
+    vec2            Dimensions;
+    vec2            RenderScale;
+    vec2            RenderOffset;
+    game_asset_id   AssetID;
 };
 
 struct game_projectile_config
@@ -495,6 +503,21 @@ Game_SetDefaultConfiguration(game_state* GameState)
     CONFIGURE_DEFAULT_PLANT(TORCHWOOD, GAME_ASSET_ID_PLANT_TORCHWOOD);
 
 #undef CONFIGURE_DEFAULT_PLANT
+
+#define CONFIGURE_DEFAULT_ZOMBIE(ZOMBIE_NAME, AssetIDValue)                                                                 \
+    {                                                                                                                       \
+        const zombie_type ZombieType = ZOMBIE_TYPE_##ZOMBIE_NAME;                                                           \
+        game_zombie_config* ZombieConfig = &Config->Zombies[ZombieType];                                                    \
+        ZombieConfig->Health = ZOMBIE_##ZOMBIE_NAME##_HEALTH;                                                               \
+        ZombieConfig->Dimensions = Vec2(ZOMBIE_##ZOMBIE_NAME##_DIMENSIONS_X, ZOMBIE_##ZOMBIE_NAME##_DIMENSIONS_Y);          \
+        ZombieConfig->RenderScale = Vec2(ZOMBIE_##ZOMBIE_NAME##_RENDER_SCALE_X, ZOMBIE_##ZOMBIE_NAME##_RENDER_SCALE_Y);     \
+        ZombieConfig->RenderOffset = Vec2(ZOMBIE_##ZOMBIE_NAME##_RENDER_OFFSET_X, ZOMBIE_##ZOMBIE_NAME##_RENDER_OFFSET_Y);  \
+        ZombieConfig->AssetID = AssetIDValue;                                                                               \
+    }
+
+    CONFIGURE_DEFAULT_ZOMBIE(NORMAL, GAME_ASSET_ID_ZOMBIE_NORMAL);
+
+#undef CONFIGURE_DEFAULT_ZOMBIE
 }
 
 function struct game_state*

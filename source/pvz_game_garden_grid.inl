@@ -416,6 +416,81 @@ GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* Platform
     }
 }
 
+internal zombie_entity*
+GameGardenGrid_SpawnZombie(game_state* GameState, zombie_type ZombieType, u32 CellIndexY, f32 PositionX)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    if (ZombieType != ZOMBIE_TYPE_NONE && ZombieType < ZOMBIE_TYPE_MAX_COUNT)
+    {
+        zombie_entity* ZombieEntity = GameGardenGrid_PushZombieEntity(GardenGrid, ZombieType, CellIndexY);
+        const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieType];
+
+        ZombieEntity->Position.X = PositionX;
+        ZombieEntity->Position.Y = GameGardenGrid_GetCellPositionY(GardenGrid, CellIndexY);
+        ZombieEntity->Health = ZombieConfig->Health;
+
+        // NOTE(Traian): While there is no hard requirement that this switch is exhaustive, it would be weird to have a
+        // zombie type that does *nothing* (the default structure doesn't provide any kind of state).
+        switch (ZombieType)
+        {
+            case ZOMBIE_TYPE_NORMAL:
+            {
+                ZombieEntity->Normal.Velocity = -ZOMBIE_NORMAL_VELOCITY;
+                ZombieEntity->Normal.AttackDamage = ZOMBIE_NORMAL_ATTACK_DAMAGE;
+                ZombieEntity->Normal.AttackDelay = ZOMBIE_NORMAL_ATTACK_DELAY;
+            }
+            break;
+        }
+
+        return ZombieEntity;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+internal void
+GameGardenGrid_UpdateZombieNormal(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                  zombie_entity* ZombieEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
+
+    const f32 ZombieFrontPositionX = ZombieEntity->Position.X - (0.5F * ZombieConfig->Dimensions.X);
+    const s32 AttackedCellIndexX = GameGardenGrid_GetCellIndexX(GardenGrid, ZombieFrontPositionX);
+    plant_entity* AttackedPlantEntity = NULL;
+    if (0 <= AttackedCellIndexX && AttackedCellIndexX < GardenGrid->CellCountX)
+    {
+        const u32 PlantIndex = (ZombieEntity->CellIndexY * GardenGrid->CellCountX) + AttackedCellIndexX;
+        plant_entity* PlantEntity = GardenGrid->PlantEntities + PlantIndex;
+        if (PlantEntity->Type != PLANT_TYPE_NONE)
+        {
+            AttackedPlantEntity = PlantEntity;
+        }
+    }
+
+    zombie_entity_normal* Normal = &ZombieEntity->Normal;
+    if (AttackedPlantEntity)
+    {
+        if (Normal->AttackTimer >= Normal->AttackDelay)
+        {
+            Normal->AttackTimer = 0.0F;
+            AttackedPlantEntity->Health -= Normal->AttackDamage;
+        }
+        else
+        {
+            Normal->AttackTimer += DeltaTime;
+        }
+    }
+    else
+    {
+        // NOTE(Traian): The zombie can't attack any plant - continue walking.
+        ZombieEntity->Position.X += Normal->Velocity * DeltaTime;
+        Normal->AttackTimer = 0.0F;
+    }
+}
+
 internal void
 GameGardenGrid_UpdateZombies(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime)
 {
@@ -433,18 +508,9 @@ GameGardenGrid_UpdateZombies(game_state* GameState, game_platform_state* Platfor
                                                            GardenGrid->SpawnZombieMaxDelay);
         if (GardenGrid->CellCountY > 0)
         {
-            const u32 SpawnCellIndexY = Random_RangeU32(&GardenGrid->RandomSeries,
-                                                        0,
-                                                        GardenGrid->CellCountY - 1);
-            zombie_entity* ZombieEntity = GameGardenGrid_PushZombieEntity(GardenGrid, ZOMBIE_TYPE_NORMAL, SpawnCellIndexY);
-            ZombieEntity->Health = ZOMBIE_NORMAL_HEALTH;
-            ZombieEntity->Position.X = GameState->Camera.UnitCountX + 0.2F;
-            ZombieEntity->Position.Y = GameGardenGrid_GetCellPositionY(GardenGrid, SpawnCellIndexY);
-            ZombieEntity->Dimensions.X = ZOMBIE_NORMAL_DIMENSIONS_X;
-            ZombieEntity->Dimensions.Y = ZOMBIE_NORMAL_DIMENSIONS_Y;
-            ZombieEntity->Normal.Velocity = -ZOMBIE_NORMAL_VELOCITY;
-            ZombieEntity->Normal.AttackDamage = ZOMBIE_NORMAL_ATTACK_DAMAGE;
-            ZombieEntity->Normal.AttackDelay = ZOMBIE_NORMAL_ATTACK_DELAY;
+            const f32 SpawnPositionX = GameState->Camera.UnitCountX + 0.5F;
+            const u32 SpawnCellIndexY = Random_RangeU32(&GardenGrid->RandomSeries, 0, GardenGrid->CellCountY - 1);
+            GameGardenGrid_SpawnZombie(GameState, ZOMBIE_TYPE_NORMAL, SpawnCellIndexY, SpawnPositionX);
         }
     }
     else
@@ -459,62 +525,36 @@ GameGardenGrid_UpdateZombies(game_state* GameState, game_platform_state* Platfor
 	for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
     {
         zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
-        
-        if (ZombieEntity->Health <= 0.0F)
+        if (!ZombieEntity->IsPendingDestroy)
         {
-            // NOTE(Traian): The zombie has died and we should not run its update procedure any more.
-            ZombieEntity->IsPendingDestroy = true;
-            continue;
-        }
-
-        if (ZombieEntity->Position.X <= -0.2F)
-        {
-            // TODO(Traian): Open the game-ended screen.
-            ZombieEntity->IsPendingDestroy = true;
-            break;
-        }
-
-        const f32 ZombieFrontPositionX = ZombieEntity->Position.X - (0.5F * ZombieEntity->Dimensions.X);
-        const s32 AttackCellIndexX = GameGardenGrid_GetCellIndexX(GardenGrid, ZombieFrontPositionX);
-        plant_entity* AttackPlantEntity = NULL;
-        if (0 <= AttackCellIndexX && AttackCellIndexX < GardenGrid->CellCountX)
-        {
-            const u32 PlantIndex = (ZombieEntity->CellIndexY * GardenGrid->CellCountX) + AttackCellIndexX;
-            plant_entity* PlantEntity = GardenGrid->PlantEntities + PlantIndex;
-            if (PlantEntity->Type != PLANT_TYPE_NONE)
+            const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
+            
+            if (ZombieEntity->Health <= 0.0F)
             {
-                AttackPlantEntity = PlantEntity;
+                // NOTE(Traian): The zombie has died and we should not run its update procedure any more.
+                ZombieEntity->IsPendingDestroy = true;
+                continue;
             }
-        }
 
-        switch (ZombieEntity->Type)
-        {
-            case ZOMBIE_TYPE_NORMAL:
+            if (ZombieEntity->Position.X <= -0.2F)
             {
-                zombie_entity_normal* Normal = &ZombieEntity->Normal;
-                
-                if (AttackPlantEntity)
-                {
-                    if (Normal->AttackTimer >= Normal->AttackDelay)
-                    {
-                        // NOTE(Traian): Reset the attack timer.
-                        Normal->AttackTimer = 0.0F;
-
-                        AttackPlantEntity->Health -= Normal->AttackDamage;
-                    }
-                    else
-                    {
-                        Normal->AttackTimer += DeltaTime;
-                    }
-                }
-                else
-                {
-                    // NOTE(Traian): The zombie can't attack any plant - continue walking.
-                    ZombieEntity->Position.X += Normal->Velocity * DeltaTime;
-                    Normal->AttackTimer = 0.0F;
-                }
+                // TODO(Traian): Open the game-ended screen.
+                ZombieEntity->IsPendingDestroy = true;
+                break;
             }
-            break;
+
+            
+
+            // NOTE(Traian): While there is no hard requirement that this switch is exhaustive, it would be weird to have a
+            // zombie type that does *nothing* (the default behaviour doesn't provide any kind of movement or attack logic).
+            switch (ZombieEntity->Type)
+            {
+                case ZOMBIE_TYPE_NORMAL:
+                {
+                    GameGardenGrid_UpdateZombieNormal(GameState, PlatformState, DeltaTime, ZombieEntity);
+                }
+                break;
+            }
         }
     }
 }
@@ -604,8 +644,9 @@ GameGardenGrid_UpdateProjectiles(game_state* GameState, game_platform_state* Pla
                         if (!ZombieEntity->IsPendingDestroy && (ZombieEntity->Health > 0) &&
                             (ZombieEntity->CellIndexY == ProjectileEntity->CellIndexY))
                         {
+                            const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
                             const f32 SignedDistance = ZombieEntity->Position.X - ProjectileEntity->Position.X;
-                            if (Abs(SignedDistance) <= (0.5F * ZombieEntity->Dimensions.X))
+                            if (Abs(SignedDistance) <= (0.5F * ZombieConfig->Dimensions.X))
                             {
                                 // NOTE(Traian): The projectile is inside the zombie.
                                 if (!ClosestZombieEntity || (ClosestZombieDistance > Abs(SignedDistance)))
@@ -758,23 +799,26 @@ GameGardenGrid_RenderZombies(game_state* GameState, game_platform_state* Platfor
 
         if (!ZombieEntity->IsPendingDestroy)
         {
-            switch (ZombieEntity->Type)
+            if (ZombieEntity->Type < ZOMBIE_TYPE_MAX_COUNT)
             {
-                case ZOMBIE_TYPE_NORMAL:
-                {
-                    const vec2 MinPoint = ZombieEntity->Position - (0.5F * ZombieEntity->Dimensions) +
-                                          Vec2(ZOMBIE_NORMAL_RENDER_OFFSET_X, ZOMBIE_NORMAL_RENDER_OFFSET_Y);
-                    const vec2 MaxPoint = MinPoint + ZombieEntity->Dimensions;
+                const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
+                const vec2 Dimensions = ZombieConfig->Dimensions;
+                const vec2 RenderScale = ZombieConfig->RenderScale;
+                const vec2 RenderOffset = ZombieConfig->RenderOffset;
+                const vec2 RenderDimensions = Vec2(Dimensions.X * RenderScale.X, Dimensions.Y * RenderScale.Y);
 
-                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_ZOMBIE_NORMAL);
+                const vec2 MinPoint = ZombieEntity->Position - (0.5F * RenderDimensions) + RenderOffset;
+                const vec2 MaxPoint = MinPoint + RenderDimensions;
+
+                asset* TextureAsset = Asset_Get(&GameState->Assets, ZombieConfig->AssetID);
+                if (TextureAsset)
+                {
                     Renderer_PushPrimitive(&GameState->Renderer,
                                            Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
                                            Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                           RenderZOffset, Color4(1.0F),
-                                           Vec2(0.0F), Vec2(1.0F),
+                                           RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
                                            &TextureAsset->Texture.RendererTexture);
                 }
-                break;
             }
         }
     }
