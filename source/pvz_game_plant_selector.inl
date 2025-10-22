@@ -28,21 +28,15 @@ GamePlantSelector_Initialize(game_state* GameState)
         SeedPacket->ThumbnailSizePercentage = Vec2(0.7F, 0.45F);
     }
 
-    PlantSelector->SeedPackets[0].PlantType = PLANT_TYPE_SUNFLOWER;
-    PlantSelector->SeedPackets[0].SunCost = PLANT_SUNFLOWER_SUN_COST;
-    PlantSelector->SeedPackets[0].CooldownDelay = PLANT_SUNFLOWER_PLANT_COOLDOWN_DELAY;
-
-    PlantSelector->SeedPackets[1].PlantType = PLANT_TYPE_PEASHOOTER;
-    PlantSelector->SeedPackets[1].SunCost = PLANT_PEASHOOTER_SUN_COST;
-    PlantSelector->SeedPackets[1].CooldownDelay = PLANT_PEASHOOTER_PLANT_COOLDOWN_DELAY;
-
-    PlantSelector->SeedPackets[2].PlantType = PLANT_TYPE_REPEATER;
-    PlantSelector->SeedPackets[2].SunCost = PLANT_REPEATER_SUN_COST;
-    PlantSelector->SeedPackets[2].CooldownDelay = PLANT_REPEATER_PLANT_COOLDOWN_DELAY;
-
-    PlantSelector->SeedPackets[3].PlantType = PLANT_TYPE_TORCHWOOD;
-    PlantSelector->SeedPackets[3].SunCost = PLANT_TORCHWOOD_SUN_COST;
-    PlantSelector->SeedPackets[3].CooldownDelay = PLANT_TORCHWOOD_PLANT_COOLDOWN_DELAY;
+    u32 SeedPacketIndex = 0;
+    for (u16 PlantType = PLANT_TYPE_NONE + 1; PlantType < PLANT_TYPE_MAX_COUNT; ++PlantType)
+    {
+        const game_plant_config PlantConfig = GameState->Config.Plants[PlantType];
+        PlantSelector->SeedPackets[SeedPacketIndex].PlantType = (plant_type)PlantType;
+        PlantSelector->SeedPackets[SeedPacketIndex].SunCost = PlantConfig.SunCost;
+        PlantSelector->SeedPackets[SeedPacketIndex].CooldownDelay = PlantConfig.PlantCooldownDelay;
+        ++SeedPacketIndex;
+    }
 }
 
 //====================================================================================================================//
@@ -120,14 +114,19 @@ GamePLantSelector_PlantSeedPacket(game_state* GameState, vec2 GameMousePosition)
 
         if (PlantEntity->Type == PLANT_TYPE_NONE)
         {
+            // NOTE(Traian): Configure the plant entity's "generic" settings.
+            if (SeedPacket->PlantType != PLANT_TYPE_NONE && SeedPacket->PlantType < PLANT_TYPE_MAX_COUNT)
+            {
+                const game_plant_config* PlantConfig = &GameState->Config.Plants[SeedPacket->PlantType];
+                PlantEntity->Type = SeedPacket->PlantType;
+                PlantEntity->Health = PlantConfig->Health;
+            }
+
             switch (SeedPacket->PlantType)
             {
                 case PLANT_TYPE_SUNFLOWER:
                 {
                     // NOTE(Traian): "Plant" a sunflower.
-
-                    PlantEntity->Type = PLANT_TYPE_SUNFLOWER;
-                    PlantEntity->Health = PLANT_SUNFLOWER_HEALTH;
                     PlantEntity->Sunflower.GenerateDelayBase = PLANT_SUNFLOWER_GENERATE_SUN_DELAY_BASE;
                     PlantEntity->Sunflower.GenerateDelayRandomOffset = PLANT_SUNFLOWER_GENERATE_SUN_DELAY_RANDOM_OFFSET;
                     PlantEntity->Sunflower.SunRadius = PLANT_SUNFLOWER_SUN_RADIUS;
@@ -139,9 +138,6 @@ GamePLantSelector_PlantSeedPacket(game_state* GameState, vec2 GameMousePosition)
                 case PLANT_TYPE_PEASHOOTER:
                 {
                     // NOTE(Traian): "Plant" a peashooter.
-
-                    PlantEntity->Type = PLANT_TYPE_PEASHOOTER;
-                    PlantEntity->Health = PLANT_PEASHOOTER_HEALTH;
                     PlantEntity->Peashooter.ShootDelay = PLANT_PEASHOOTER_SHOOT_DELAY;
                     PlantEntity->Peashooter.ProjectileDamage = PLANT_PEASHOOTER_PROJECTILE_DAMAGE;
                     PlantEntity->Peashooter.ProjectileVelocity = PLANT_PEASHOOTER_PROJECTILE_VELOCITY;
@@ -152,9 +148,6 @@ GamePLantSelector_PlantSeedPacket(game_state* GameState, vec2 GameMousePosition)
                 case PLANT_TYPE_REPEATER:
                 {
                     // NOTE(Traian): "Plant" a repeater.
-
-                    PlantEntity->Type = PLANT_TYPE_REPEATER;
-                    PlantEntity->Health = PLANT_REPEATER_HEALTH;
                     PlantEntity->Repeater.ShootSequenceDelay = PLANT_REPEATER_SHOOT_SEQUENCE_DELAY;
                     PlantEntity->Repeater.ShootSequenceDeltaDelay = PLANT_REPEATER_SHOOT_SEQUENCE_DELTA_DELAY;
                     PlantEntity->Repeater.ProjectileDamage = PLANT_REPEATER_PROJECTILE_DAMAGE;
@@ -166,9 +159,6 @@ GamePLantSelector_PlantSeedPacket(game_state* GameState, vec2 GameMousePosition)
                 case PLANT_TYPE_TORCHWOOD:
                 {
                     // NOTE(Traian): "Plant" a torchwood.
-
-                    PlantEntity->Type = PLANT_TYPE_TORCHWOOD;
-                    PlantEntity->Health = PLANT_TORCHWOOD_HEALTH;
                     PlantEntity->Torchwood.DamageMultiplier = PLANT_TORCHWOOD_DAMAGE_MULTIPLIER;
                 }
                 break;
@@ -380,38 +370,15 @@ GamePlantSelector_RenderSeedPacket(game_state* GameState, u32 SeedPacketIndex)
     ThumbnailSize.X = SeedPacket->ThumbnailSizePercentage.X * PlantSelector->SeedPacketSize.X;
     ThumbnailSize.Y = SeedPacket->ThumbnailSizePercentage.Y * PlantSelector->SeedPacketSize.Y;
 
-    asset* ThumbnailTexture = NULL;
-    switch (SeedPacket->PlantType)
+    const game_asset_id ThumbnailTextureAssetID = GameState->Config.Plants[SeedPacket->PlantType].AssetID;
+    if (ThumbnailTextureAssetID != GAME_ASSET_ID_NONE)
     {
-        case PLANT_TYPE_SUNFLOWER:
-        {
-            ThumbnailTexture = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_SUNFLOWER);
-        }
-        break;
-        case PLANT_TYPE_PEASHOOTER:
-        {
-            ThumbnailTexture = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_PEASHOOTER);
-        }
-        break;
-        case PLANT_TYPE_REPEATER:
-        {
-            ThumbnailTexture = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_REPEATER);
-        }
-        break;
-        case PLANT_TYPE_TORCHWOOD:
-        {
-            ThumbnailTexture = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_TORCHWOOD);
-        }
-        break;
-    }
-
-    if (ThumbnailTexture)
-    {
+        asset* ThumbnailTextureAsset = Asset_Get(&GameState->Assets, ThumbnailTextureAssetID);
         Renderer_PushPrimitive(&GameState->Renderer,
                                Game_TransformGamePointToNDC(&GameState->Camera, ThumbnailCenter - 0.5F * ThumbnailSize),
                                Game_TransformGamePointToNDC(&GameState->Camera, ThumbnailCenter + 0.5F * ThumbnailSize),
                                PLANT_SELECTOR_SEED_PACKET_THUMBNAIL_OFFSET_Z, TintColor, Vec2(0.0F), Vec2(1.0F),
-                               &ThumbnailTexture->Texture.RendererTexture);
+                               &ThumbnailTextureAsset->Texture.RendererTexture);
     }
 
     //

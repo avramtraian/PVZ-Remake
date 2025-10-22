@@ -328,14 +328,6 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
 }
 
 internal void
-GameGardenGrid_UpdatePlantTorchwood(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
-                                    u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
-{
-    game_garden_grid* GardenGrid = &GameState->GardenGrid;
-    plant_entity_torchwood* Torchwood = &PlantEntity->Torchwood;
-}
-
-internal void
 GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime)
 {
 	game_garden_grid* GardenGrid = &GameState->GardenGrid;
@@ -395,6 +387,7 @@ GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* Platform
                     continue;
                 }
 
+                // NOTE(Traian): This switch doesn't have to be exhaustive. There are plants that have no update logic.
                 switch (PlantEntity->Type)
                 {
                     case PLANT_TYPE_SUNFLOWER:
@@ -415,13 +408,6 @@ GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* Platform
                     {
                         GameGardenGrid_UpdatePlantRepeater(GameState, PlatformState, DeltaTime,
                                                                    CellIndexX, CellIndexY, CellPoint, PlantEntity);
-                    }
-                    break;
-
-                    case PLANT_TYPE_TORCHWOOD:
-                    {
-                        GameGardenGrid_UpdatePlantTorchwood(GameState, PlatformState, DeltaTime,
-                                                            CellIndexX, CellIndexY, CellPoint, PlantEntity);
                     }
                     break;
                 }
@@ -728,79 +714,25 @@ GameGardenGrid_RenderPlants(game_state* GameState, game_platform_state* Platform
             // about the Z ordering of plants (unlike zombies).
             const f32 RenderZOffset = GARDEN_GRID_PLANTS_BASE_Z_OFFSET + (GardenGrid->CellCountY - CellIndexY - 1);
 
-            switch (PlantEntity->Type)
+            if (PlantEntity->Type != PLANT_TYPE_NONE && PlantEntity->Type < PLANT_TYPE_MAX_COUNT)
             {
-                case PLANT_TYPE_SUNFLOWER:
-                {
-                    const vec2 Dimensions = Vec2(PLANT_SUNFLOWER_DIMENSIONS_X, PLANT_SUNFLOWER_DIMENSIONS_Y);
-                    const vec2 MinPoint = CellPoint - (0.5F * Dimensions) +
-                                          Vec2(PLANT_SUNFLOWER_RENDER_OFFSET_X, PLANT_SUNFLOWER_RENDER_OFFSET_Y);
-                    const vec2 MaxPoint = MinPoint + Dimensions;
+                const game_plant_config* PlantConfig = &GameState->Config.Plants[PlantEntity->Type];
+                const vec2 Dimensions = PlantConfig->Dimensions;
+                const vec2 RenderScale = PlantConfig->RenderScale;
+                const vec2 RenderOffset = PlantConfig->RenderOffset;
+                const vec2 RenderDimensions = Vec2(Dimensions.X * RenderScale.X, Dimensions.Y * RenderScale.Y);
 
-                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_SUNFLOWER);
+                const vec2 MinPoint = CellPoint - (0.5F * RenderDimensions) + RenderOffset;
+                const vec2 MaxPoint = MinPoint + RenderDimensions;
+                asset* TextureAsset = Asset_Get(&GameState->Assets, PlantConfig->AssetID);
+                if (TextureAsset)
+                {
                     Renderer_PushPrimitive(&GameState->Renderer,
                                            Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
                                            Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                           RenderZOffset, Color4(1.0F),
-                                           Vec2(0.0F), Vec2(1.0F),
+                                           RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
                                            &TextureAsset->Texture.RendererTexture);
                 }
-                break;
-
-                case PLANT_TYPE_PEASHOOTER:
-                {
-                    const vec2 Dimensions = Vec2(PLANT_PEASHOOTER_DIMENSIONS_X, PLANT_PEASHOOTER_DIMENSIONS_Y);
-                    const vec2 MinPoint = CellPoint - (0.5F * Dimensions) +
-                                          Vec2(PLANT_PEASHOOTER_RENDER_OFFSET_X, PLANT_PEASHOOTER_RENDER_OFFSET_Y);
-                    const vec2 MaxPoint = MinPoint + Dimensions;
-
-                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_PEASHOOTER);
-                    Renderer_PushPrimitive(&GameState->Renderer,
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                           RenderZOffset, Color4(1.0F),
-                                           Vec2(0.0F), Vec2(1.0F),
-                                           &TextureAsset->Texture.RendererTexture);
-                }
-                break;
-
-                case PLANT_TYPE_REPEATER:
-                {
-                    const vec2 Dimensions = Vec2(PLANT_REPEATER_DIMENSIONS_X,
-                                                 PLANT_REPEATER_DIMENSIONS_Y);
-                    const vec2 RenderOffset = Vec2(PLANT_REPEATER_RENDER_OFFSET_X,
-                                                   PLANT_REPEATER_RENDER_OFFSET_Y);
-                    const vec2 MinPoint = CellPoint - (0.5F * Dimensions) + RenderOffset;
-                    const vec2 MaxPoint = MinPoint + Dimensions;
-
-                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_REPEATER);
-                    Renderer_PushPrimitive(&GameState->Renderer,
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                           RenderZOffset, Color4(1.0F),
-                                           Vec2(0.0F), Vec2(1.0F),
-                                           &TextureAsset->Texture.RendererTexture);
-                }
-                break;
-
-                case PLANT_TYPE_TORCHWOOD:
-                {
-                    const vec2 Dimensions = Vec2(PLANT_TORCHWOOD_DIMENSIONS_X,
-                                                 PLANT_TORCHWOOD_DIMENSIONS_Y);
-                    const vec2 RenderOffset = Vec2(PLANT_TORCHWOOD_RENDER_OFFSET_X,
-                                                   PLANT_TORCHWOOD_RENDER_OFFSET_Y);
-                    const vec2 MinPoint = CellPoint - (0.5F * Dimensions) + RenderOffset;
-                    const vec2 MaxPoint = MinPoint + Dimensions;
-
-                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_TORCHWOOD);
-                    Renderer_PushPrimitive(&GameState->Renderer,
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                           RenderZOffset, Color4(1.0F),
-                                           Vec2(0.0F), Vec2(1.0F),
-                                           &TextureAsset->Texture.RendererTexture);
-                }
-                break;
             }
         }
     }

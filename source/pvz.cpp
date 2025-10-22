@@ -22,17 +22,11 @@ struct game_camera
 };
 
 //
-// TODO(Traian): Currently, there is no centralized system that can query generic parameters about the plant. This
-// means that there are a lot of places in the code where we switch over all possible plant types to determine what
-// to do next. This is obiously very bad from a matainability point of view! We iterate over all possible types in
-// the following code sections:
-//   - In 'GameGardenGrid_UpdatePlants', when updating the plants;
-//   - In 'GameGardenGrid_RenderPlants', when rendering the plants;
-//   - In 'GamePLantSelector_PlantSeedPacket', when we plant a new plant from the selector into the grid;
-//   - In 'GamePlantSelector_RenderSeedPacket', when we render the seed packet thumbnai;
-//   - In 'GamePlantSelector_RenderPlantPreview', when we render the plant preview.
-// In the future, we would ideally only need a switch/dynamic dispatch in 'GameGardenGrid_UpdatePlants'! In the mean
-// time, make sure to update all switches in all of the above mentioned sections when adding a new plant type...
+// NOTE(Traian): ADDING A NEW PLANT TYPE!
+//
+// - 'Game_SetDefaultConfiguration', where you *must* define the plant configuration structure.
+// - 'GameGardenGrid_UpdatePlants', which (optionally) updates the logic and the plant.
+// - 'GamePLantSelector_PlantSeedPacket', which (optionally) configures all paramteres specific to that type.
 //
 
 enum plant_type : u16
@@ -42,6 +36,7 @@ enum plant_type : u16
     PLANT_TYPE_PEASHOOTER,
     PLANT_TYPE_REPEATER,
     PLANT_TYPE_TORCHWOOD,
+    PLANT_TYPE_MAX_COUNT,
 };
 
 struct plant_entity_sunflower
@@ -100,6 +95,7 @@ enum zombie_type : u16
 {
     ZOMBIE_TYPE_NONE = 0,
     ZOMBIE_TYPE_NORMAL,
+    ZOMBIE_TYPE_MAX_COUNT,
 };
 
 struct zombie_entity_normal
@@ -132,6 +128,7 @@ enum projectile_type : u16
     PROJECTILE_TYPE_NONE = 0,
     PROJECTILE_TYPE_PEA,
     PROJECTILE_TYPE_SUN,
+    PROJECTILE_TYPE_MAX_COUNT,
 };
 
 struct projectile_entity_sun
@@ -247,6 +244,38 @@ struct game_plant_selector
     vec2                PlantPreviewCenterPosition;
 };
 
+struct game_plant_config
+{
+    u32             SunCost;
+    f32             PlantCooldownDelay;
+    f32             Health;
+    vec2            Dimensions;
+    vec2            RenderScale;
+    vec2            RenderOffset;
+    game_asset_id   AssetID;
+};
+
+struct game_zombie_config
+{
+    f32     Health;
+    vec2    Dimensions;
+    vec2    RenderScale;
+    vec2    RenderOffset;
+};
+
+struct game_projectile_config
+{
+    vec2 RenderScale;
+    vec2 RenderOffset;
+};
+
+struct game_config
+{
+    game_plant_config       Plants      [PLANT_TYPE_MAX_COUNT];
+    game_zombie_config      Zombies     [ZOMBIE_TYPE_MAX_COUNT];
+    game_projectile_config  Projectiles [PROJECTILE_TYPE_MAX_COUNT];
+};
+
 struct game_state
 {
     memory_arena*       PermanentArena;
@@ -257,6 +286,7 @@ struct game_state
     game_garden_grid    GardenGrid;
     game_sun_counter    SunCounter;
     game_plant_selector PlantSelector;
+    game_config         Config;
 };
 
 //====================================================================================================================//
@@ -441,6 +471,32 @@ Game_UpdateCamera(game_state* GameState, renderer_image* RenderTarget)
 //-------------------------------------------------- INITIALIZATION --------------------------------------------------//
 //====================================================================================================================//
 
+internal void
+Game_SetDefaultConfiguration(game_state* GameState)
+{
+    game_config* Config = &GameState->Config;
+
+#define CONFIGURE_DEFAULT_PLANT(PLANT_NAME, AssetIDValue)                                                                             \
+    {                                                                                                                   \
+        const plant_type PlantType = PLANT_TYPE_##PLANT_NAME;                                                           \
+        game_plant_config* PlantConfig = &Config->Plants[PlantType];                                                    \
+        PlantConfig->SunCost = PLANT_##PLANT_NAME##_SUN_COST;                                                           \
+        PlantConfig->PlantCooldownDelay = PLANT_##PLANT_NAME##_PLANT_COOLDOWN_DELAY;                                    \
+        PlantConfig->Health = PLANT_##PLANT_NAME##_HEALTH;                                                              \
+        PlantConfig->Dimensions = Vec2(PLANT_##PLANT_NAME##_DIMENSIONS_X, PLANT_##PLANT_NAME##_DIMENSIONS_Y);           \
+        PlantConfig->RenderScale = Vec2(PLANT_##PLANT_NAME##_RENDER_SCALE_X, PLANT_##PLANT_NAME##_RENDER_SCALE_Y);      \
+        PlantConfig->RenderOffset = Vec2(PLANT_##PLANT_NAME##_RENDER_OFFSET_X, PLANT_##PLANT_NAME##_RENDER_OFFSET_Y);   \
+        PlantConfig->AssetID = AssetIDValue;                                                                            \
+    }
+
+    CONFIGURE_DEFAULT_PLANT(SUNFLOWER, GAME_ASSET_ID_PLANT_SUNFLOWER);
+    CONFIGURE_DEFAULT_PLANT(PEASHOOTER, GAME_ASSET_ID_PLANT_PEASHOOTER);
+    CONFIGURE_DEFAULT_PLANT(REPEATER, GAME_ASSET_ID_PLANT_REPEATER);
+    CONFIGURE_DEFAULT_PLANT(TORCHWOOD, GAME_ASSET_ID_PLANT_TORCHWOOD);
+
+#undef CONFIGURE_DEFAULT_PLANT
+}
+
 function struct game_state*
 Game_Initialize(platform_game_memory* GameMemory)
 {
@@ -471,6 +527,8 @@ Game_Initialize(platform_game_memory* GameMemory)
     //
     // NOTE(Traian): Initialize the game layers.
     //
+
+    Game_SetDefaultConfiguration(GameState);
 
     GameGardenGrid_Initialize(GameState);
     GameSunCounter_Initialize(GameState);
