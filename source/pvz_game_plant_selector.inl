@@ -419,30 +419,8 @@ GamePlantSelector_RenderSeedPacket(game_state* GameState, u32 SeedPacketIndex)
     //
 
     char SunCostCharacters[8] = {};
-    memory_size SunCostCharacterCount = 0;
-    if (SeedPacket->SunCost > 0)
-    {
-
-        u32 SunCost = SeedPacket->SunCost;
-        while (SunCost > 0)
-        {
-            SunCostCharacterCount++;
-            SunCost /= 10;
-        }
-
-        memory_size CharacterOffset = SunCostCharacterCount - 1;
-        SunCost = SeedPacket->SunCost;
-        while (SunCost > 0)
-        {
-            SunCostCharacters[CharacterOffset--] = '0' + (SunCost % 10);
-            SunCost /= 10;
-        }
-    }
-    else
-    {
-        SunCostCharacterCount = 1;
-        SunCostCharacters[0] = '0';
-    }
+    const memory_size SunCostCharacterCount = String_FromUnsignedInteger(SunCostCharacters, sizeof(SunCostCharacters),
+                                                                         SeedPacket->SunCost, STRING_NUMBER_BASE_DEC);
 
     vec2 SunCostCenter;
     SunCostCenter.X = Math_Lerp(SeedPacketRectangle.Min.X, SeedPacketRectangle.Max.X, SeedPacket->SunCostCenterPercentage.X);

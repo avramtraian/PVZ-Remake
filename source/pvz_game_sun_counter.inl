@@ -114,30 +114,8 @@ GameSunCounter_Render(game_state* GameState, game_platform_state* PlatformState)
     //
 
     char SunAmountCharacters[8] = {};
-    memory_size SunAmountCharacterCount = 0;
-    if (SunCounter->SunAmount > 0)
-    {
-
-        u32 SunAmount = SunCounter->SunAmount;
-        while (SunAmount > 0)
-        {
-            SunAmountCharacterCount++;
-            SunAmount /= 10;
-        }
-
-        memory_size CharacterOffset = SunAmountCharacterCount - 1;
-        SunAmount = SunCounter->SunAmount;
-        while (SunAmount > 0)
-        {
-            SunAmountCharacters[CharacterOffset--] = '0' + (SunAmount % 10);
-            SunAmount /= 10;
-        }
-    }
-    else
-    {
-        SunAmountCharacterCount = 1;
-        SunAmountCharacters[0] = '0';
-    }
+    const memory_size SunAmountCharacterCount = String_FromUnsignedInteger(SunAmountCharacters, sizeof(SunAmountCharacters),
+                                                                           SunCounter->SunAmount, STRING_NUMBER_BASE_DEC);
 
     const f32 TextHeight = SunCounter->SunAmountHeightPercentage * (SunCounter->MaxPoint.Y - SunCounter->MinPoint.Y);
     vec2 SunAmountCenter;

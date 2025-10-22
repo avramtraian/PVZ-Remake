@@ -260,6 +260,67 @@ struct game_state
 };
 
 //====================================================================================================================//
+//------------------------------------------------ STRING MANIPULATION -----------------------------------------------//
+//====================================================================================================================//
+
+enum string_number_base : u8
+{
+    STRING_NUMBER_BASE_BIN = 2,
+    STRING_NUMBER_BASE_OCT = 8,
+    STRING_NUMBER_BASE_DEC = 10,
+    STRING_NUMBER_BASE_HEX = 16,
+};
+
+internal inline memory_size
+String_FromUnsignedInteger(char* DstBuffer, memory_size DstBufferByteCount, u64 Value, string_number_base NumberBase)
+{
+    if (Value == 0)
+    {
+        if (DstBufferByteCount > 0)
+        {
+            DstBuffer[0] = '0';
+            return sizeof(char);
+        }
+        else
+        {
+            // NOTE(Traian): The buffer is not sufficient to store the number.
+            return 0;
+        }
+    }
+
+    u8 DigitCount = 0;
+    u64 WorkValue = Value;
+    while (WorkValue > 0)
+    {
+        ++DigitCount;
+        WorkValue /= (u64)NumberBase;
+    }
+
+    if (DigitCount * sizeof(char) <= DstBufferByteCount)
+    {
+        
+        const memory_size WrittenByteCount = DigitCount * sizeof(char);
+        memory_size ByteOffset = WrittenByteCount - 1;
+        
+        WorkValue = Value;
+        while (WorkValue > 0)
+        {
+            const char* DIGITS = "0123456789ABCDEF";
+            const u8 Digit = WorkValue % NumberBase;
+            DstBuffer[ByteOffset--] = DIGITS[Digit];
+            WorkValue /= (u64)NumberBase;
+        }
+
+        return WrittenByteCount;
+    }
+    else
+    {
+        // NOTE(Traian): The buffer is not sufficient to store the number.
+        return 0;
+    }
+}
+
+//====================================================================================================================//
 //------------------------------------------------------ CAMERA ------------------------------------------------------//
 //====================================================================================================================//
 
