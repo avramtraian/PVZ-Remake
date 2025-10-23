@@ -631,7 +631,7 @@ GameGardenGrid_UpdateProjectilePea(game_state* GameState, game_platform_state* P
             {
                 projectile_entity_fire_pea FirePea = {};
                 FirePea.Velocity = Pea->Velocity;
-                FirePea.Damage = Pea->Damage;
+                FirePea.Damage = Pea->Damage * PlantEntity->Torchwood.DamageMultiplier;
 
                 ProjectileEntity->Type = PROJECTILE_TYPE_FIRE_PEA;
                 ProjectileEntity->FirePea = FirePea;
