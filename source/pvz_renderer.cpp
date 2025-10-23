@@ -540,14 +540,23 @@ Renderer_GetRasterizationArea(f32 ViewportSizeX, f32 ViewportSizeY, rect2D QuadR
 
     s32 MinSampleIndexX = (s32)(MinSamplePoint.X + 0.5F);
     s32 MinSampleIndexY = (s32)(MinSamplePoint.Y + 0.5F);
+
+    // NOTE(Traian): In order to avoid overdraw, if the sample point on one of the axis is *exactly* on the center of
+    // the pixel on the right/bottom side of the quad, we discard that pixel. However, floating point math is
+    // imprecise! In order to ensure that dividing a quad into multiple quads and rendering them separately doesn't
+    // produce any gaps between them, we must introduce a small error tolerance.
+    // But this is more of a hack rather than a fix! Error tolerances are dependent on the resolution at which we
+    // render, so inconsistencies from one resolution to another might appear! The proper solution to this issue is to
+    // use fixed-point math - which is outside of the scope for this game!
+    const f32 ERROR_TOLERANCE = 0.0001F;
     
     s32 MaxSampleIndexX = (s32)(MaxSamplePoint.X - 0.5F);
-    if (MaxSamplePoint.X == (f32)MaxSampleIndexX + 0.5F)
+    if (((f32)MaxSampleIndexX + 0.5F) - MaxSamplePoint.X > ERROR_TOLERANCE)
     {
         --MaxSampleIndexX;
     }
     s32 MaxSampleIndexY = (s32)(MaxSamplePoint.Y - 0.5F);
-    if (MaxSamplePoint.Y == (f32)MaxSampleIndexY + 0.5F)
+    if (((f32)MaxSampleIndexY + 0.5F) - MaxSamplePoint.Y > ERROR_TOLERANCE)
     {
         --MaxSampleIndexY;
     }
@@ -734,9 +743,12 @@ Renderer_DrawTexturedPrimitive(renderer* Renderer, renderer_image* RenderTarget,
                  PixelPositionX < RasterizationArea.PixelOffsetX + RasterizationArea.PixelCountX;
                  ++PixelPositionX)
             {
-                const f32 PercentageX = Math_InverseLerp(MinGeometricPrimitive.X, MaxGeometricPrimitive.X,
+                // NOTE(Traian): Unfortunately, this shenanigan is a caused by the error tolerance in the rasterization
+                // function (otherwise, an out-of-bounds texture read might occur) - no easy fix!
+                const f32 ERROR_TOLERANCE = 0.001F;
+                const f32 PercentageX = Math_InverseLerp(MinGeometricPrimitive.X, MaxGeometricPrimitive.X + ERROR_TOLERANCE,
                                                          (f32)PixelPositionX + 0.5F);
-                const f32 PercentageY = Math_InverseLerp(MinGeometricPrimitive.Y, MaxGeometricPrimitive.Y,
+                const f32 PercentageY = Math_InverseLerp(MinGeometricPrimitive.Y, MaxGeometricPrimitive.Y + ERROR_TOLERANCE,
                                                          (f32)PixelPositionY + 0.5F);
 
                 // NOTE(Traian): Calculate the UV coordinate of this fragment.
