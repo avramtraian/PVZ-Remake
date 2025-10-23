@@ -259,6 +259,21 @@ struct game_plant_selector
     vec2                                PlantPreviewCenterPosition;
 };
 
+struct game_shovel
+{
+    vec2                                MinPoint;
+    vec2                                MaxPoint;
+    vec2                                ThumbnailCenterPosition;
+    vec2                                ThumbnailDimensions;
+
+    f32                                 BorderThickness;
+    vec2                                ThumbnailCenterPercentage;
+    vec2                                ThumbnailDimensionsPercentage;
+
+    b8                                  IsSelected;
+    vec2                                ToolCenterPosition;
+};
+
 struct game_plant_config
 {
     u32                                 SunCost;
@@ -303,6 +318,7 @@ struct game_state
     game_garden_grid                    GardenGrid;
     game_sun_counter                    SunCounter;
     game_plant_selector                 PlantSelector;
+    game_shovel                         Shovel;
     game_config                         Config;
 };
 
@@ -483,6 +499,7 @@ Game_UpdateCamera(game_state* GameState, renderer_image* RenderTarget)
 #include "pvz_game_garden_grid.inl"
 #include "pvz_game_sun_counter.inl"
 #include "pvz_game_plant_selector.inl"
+#include "pvz_game_shovel.inl"
 
 //====================================================================================================================//
 //-------------------------------------------------- INITIALIZATION --------------------------------------------------//
@@ -580,6 +597,7 @@ Game_Initialize(platform_game_memory* GameMemory)
     GameGardenGrid_Initialize(GameState);
     GameSunCounter_Initialize(GameState);
     GamePlantSelector_Initialize(GameState);
+    GameShovel_Initialize(GameState);
 
     return GameState;
 }
@@ -598,10 +616,12 @@ Game_UpdateAndRender(game_state* GameState, game_platform_state* PlatformState, 
     GameGardenGrid_Update(GameState, PlatformState, DeltaTime);
     GameSunCounter_Update(GameState, PlatformState, DeltaTime);
     GamePlantSelector_Update(GameState, PlatformState, DeltaTime);
+    GameShovel_Update(GameState, PlatformState, DeltaTime);
 
     GameGardenGrid_Render(GameState, PlatformState);
     GameSunCounter_Render(GameState, PlatformState);
     GamePlantSelector_Render(GameState, PlatformState);
+    GameShovel_Render(GameState, PlatformState);
 
     Renderer_EndFrame(&GameState->Renderer);
     Renderer_DispatchClusters(&GameState->Renderer, PlatformState->RenderTarget);

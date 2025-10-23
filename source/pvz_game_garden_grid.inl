@@ -339,36 +339,6 @@ GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* Platform
     const f32 InvCellCountX = 1.0F / (f32)GardenGrid->CellCountX;
     const f32 InvCellCountY = 1.0F / (f32)GardenGrid->CellCountY;
 
-    const vec2 GameMousePosition = Game_TransformNDCPointToGame(&GameState->Camera,
-                                                                Vec2(PlatformState->Input->MousePositionX,
-                                                                     PlatformState->Input->MousePositionY));
-
-	//
-    // NOTE(Traian): Place new plants using the debug placement system.
-    //
-
-    const s32 MouseCellIndexX = GameGardenGrid_GetCellIndexX(GardenGrid, GameMousePosition.X);
-    const s32 MouseCellIndexY = GameGardenGrid_GetCellIndexY(GardenGrid, GameMousePosition.Y);
-
-    // INTERNAL_LOG("%5f x %5f %5f x %5f %3d x %3d\n",
-    //              GameMousePosition.X, GameMousePosition.Y,
-    //              GardenGrid->MinPoint.X, GardenGrid->MaxPoint.Y,
-    //              MouseCellIndexX, MouseCellIndexY);
-
-    if ((0 <= MouseCellIndexX && MouseCellIndexX < GardenGrid->CellCountX) &&
-        (0 <= MouseCellIndexY && MouseCellIndexY < GardenGrid->CellCountY))
-    {
-        const u32 PlantIndex = (MouseCellIndexY * GardenGrid->CellCountX) + MouseCellIndexX;
-        plant_entity* PlantEntity = GardenGrid->PlantEntities + PlantIndex;
-        if (PlantEntity->Type != PLANT_TYPE_NONE)
-        {
-            if (PlatformState->Input->Keys[GAME_INPUT_KEY_F1].WasPressedThisFrame)
-            {
-                PlantEntity->IsPendingDestroy = true;
-            }
-        }
-    }
-
     //
     // NOTE(Traian): Update plant entities.
     //
