@@ -344,7 +344,7 @@ BAP_GenerateAssetPack(bap_asset_pack* AssetPack, const char* AssetRootDirectoryP
     BAP_ADD_TEXTURE("plant_torchwood.png", GAME_ASSET_ID_PLANT_TORCHWOOD);
     BAP_ADD_TEXTURE("projectile_sun.png", GAME_ASSET_ID_PROJECTILE_SUN);
     BAP_ADD_TEXTURE("projectile_pea.png", GAME_ASSET_ID_PROJECTILE_PEA);
-    BAP_ADD_TEXTURE("projectile_pea_fire.png", GAME_ASSET_ID_PROJECTILE_PEA_FIRE);
+    BAP_ADD_TEXTURE("projectile_fire_pea.png", GAME_ASSET_ID_PROJECTILE_FIRE_PEA);
     BAP_ADD_TEXTURE("zombie_normal.png", GAME_ASSET_ID_ZOMBIE_NORMAL);
     BAP_ADD_TEXTURE("ui_seed_packet.png", GAME_ASSET_ID_UI_SEED_PACKET);
 

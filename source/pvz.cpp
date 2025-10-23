@@ -11,16 +11,6 @@
 //-------------------------------------------------- STATE STRUCTURE -------------------------------------------------//
 //====================================================================================================================//
 
-struct game_camera
-{
-    f32     UnitCountX;
-    f32     UnitCountY;
-    vec2    NDCViewportMin;
-    vec2    NDCViewportMax;
-    u32     ViewportPixelCountX;
-    u32     ViewportPixelCountY;
-};
-
 //
 // NOTE(Traian): ADDING A NEW PLANT TYPE!
 //
@@ -39,58 +29,6 @@ enum plant_type : u16
     PLANT_TYPE_MAX_COUNT,
 };
 
-struct plant_entity_sunflower
-{
-    f32 GenerateDelayBase;
-    f32 GenerateDelayRandomOffset;
-    f32 GenerateTimer;
-    u32 SunAmount;
-    f32 SunRadius;
-    f32 SunDecayDelay;
-};
-
-struct plant_entity_peashooter
-{
-    f32 ShootDelay;
-    f32 ShootTimer;
-    f32 ProjectileDamage;
-    f32 ProjectileVelocity;
-    f32 ProjectileRadius;
-};
-
-struct plant_entity_repeater
-{
-    f32 ShootSequenceDelay;
-    f32 ShootSequenceDeltaDelay;
-    f32 ShootTimer;
-    b8  IsInShootSequence;
-    f32 ProjectileDamage;
-    f32 ProjectileVelocity;
-    f32 ProjectileRadius;
-};
-
-struct plant_entity_torchwood
-{
-    f32 DamageMultiplier;
-};
-
-struct plant_entity
-{
-    // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
-    // the 'is-pending-destroy' flag (8-bit) and a currently unused reserved flag (8-bit).
-    plant_type                  Type;
-    b8                          IsPendingDestroy;
-    u8                          Reserved_;
-    f32                         Health;
-    union
-    {
-        plant_entity_sunflower  Sunflower;
-        plant_entity_peashooter Peashooter;
-        plant_entity_repeater   Repeater;
-        plant_entity_torchwood  Torchwood;
-    };
-};
-
 //
 // NOTE(Traian): ADDING A NEW ZOMBIE TYPE!
 //
@@ -106,195 +44,266 @@ enum zombie_type : u16
     ZOMBIE_TYPE_MAX_COUNT,
 };
 
+//
+// NOTE(Traian): ADDING A NEW PROJECTILE TYPE!
+//
+// - 'Game_SetDefaultConfiguration', where you *must* define the projectile configuration structure.
+// - 'GameGardenGrid_UpdateProjectiles', which (optionally) updates the projectile logic.
+//
+
+enum projectile_type : u16
+{
+    PROJECTILE_TYPE_NONE = 0,
+    PROJECTILE_TYPE_PEA,
+    PROJECTILE_TYPE_FIRE_PEA,
+    PROJECTILE_TYPE_SUN,
+    PROJECTILE_TYPE_MAX_COUNT,
+};
+
+struct game_camera
+{
+    f32                                 UnitCountX;
+    f32                                 UnitCountY;
+    vec2                                NDCViewportMin;
+    vec2                                NDCViewportMax;
+    u32                                 ViewportPixelCountX;
+    u32                                 ViewportPixelCountY;
+};
+
+struct plant_entity_sunflower
+{
+    f32                                 GenerateDelayBase;
+    f32                                 GenerateDelayRandomOffset;
+    f32                                 GenerateTimer;
+    u32                                 SunAmount;
+    f32                                 SunRadius;
+    f32                                 SunDecayDelay;
+};
+
+struct plant_entity_peashooter
+{
+    f32                                 ShootDelay;
+    f32                                 ShootTimer;
+    f32                                 ProjectileDamage;
+    f32                                 ProjectileVelocity;
+    f32                                 ProjectileRadius;
+};
+
+struct plant_entity_repeater
+{
+    f32                                 ShootSequenceDelay;
+    f32                                 ShootSequenceDeltaDelay;
+    f32                                 ShootTimer;
+    b8                                  IsInShootSequence;
+    f32                                 ProjectileDamage;
+    f32                                 ProjectileVelocity;
+    f32                                 ProjectileRadius;
+};
+
+struct plant_entity_torchwood
+{
+    f32                                 DamageMultiplier;
+};
+
+struct plant_entity
+{
+    // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
+    // the 'is-pending-destroy' flag (8-bit) and a currently unused reserved flag (8-bit).
+    plant_type                          Type;
+    b8                                  IsPendingDestroy;
+    u8                                  Reserved_;
+    f32                                 Health;
+    union
+    {
+        plant_entity_sunflower          Sunflower;
+        plant_entity_peashooter         Peashooter;
+        plant_entity_repeater           Repeater;
+        plant_entity_torchwood          Torchwood;
+    };
+};
+
+
+
 struct zombie_entity_normal
 {
-    f32 Velocity;
-    f32 AttackDamage;
-    f32 AttackDelay;
-    f32 AttackTimer;
+    f32                                 Velocity;
+    f32                                 AttackDamage;
+    f32                                 AttackDelay;
+    f32                                 AttackTimer;
 };
 
 struct zombie_entity
 {
     // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
     // the 'is-pending-destroy' flag (8-bit) and a currently unused reserved flag (8-bit).
-    zombie_type                 Type;
-    b8                          IsPendingDestroy;
-    u8                          Reserved_;
-    u32                         CellIndexY;
-    vec2                        Position;
-    f32                         Health;
+    zombie_type                         Type;
+    b8                                  IsPendingDestroy;
+    u8                                  Reserved_;
+    u32                                 CellIndexY;
+    vec2                                Position;
+    f32                                 Health;
     union
     {
-        zombie_entity_normal    Normal;
+        zombie_entity_normal            Normal;
     };
-};
-
-enum projectile_type : u16
-{
-    PROJECTILE_TYPE_NONE = 0,
-    PROJECTILE_TYPE_PEA,
-    PROJECTILE_TYPE_SUN,
-    PROJECTILE_TYPE_MAX_COUNT,
 };
 
 struct projectile_entity_sun
 {
-    f32     Radius;
-    u32     SunAmount;
-    f32     DecayDelay;
-    f32     DecayTimer;
-};
-
-enum pea_type : u8
-{
-    PEA_TYPE_NORMAL = 0,
-    PEA_TYPE_FIRE,
+    u32                                 SunAmount;
+    f32                                 DecayDelay;
+    f32                                 DecayTimer;
 };
 
 struct projectile_entity_pea
 {
-    pea_type    Type;
-    f32         Radius;
-    f32         Velocity;
-    f32         Damage;
+    f32                                 Velocity;
+    f32                                 Damage;
+};
+
+struct projectile_entity_fire_pea
+{
+    f32                                 Velocity;
+    f32                                 Damage;
 };
 
 struct projectile_entity
 {
     // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
     // the 'is-pending-destroy' flag (8-bit) and a currently unused reserved flag (8-bit).
-    projectile_type             Type;
-    b8                          IsPendingDestroy;
-    u8                          Reserved_;
-    u32                         CellIndexY;
-    vec2                        Position;
-    vec2                        Dimensions;
+    projectile_type                     Type;
+    b8                                  IsPendingDestroy;
+    u8                                  Reserved_;
+    u32                                 CellIndexY;
+    vec2                                Position;
+    f32                                 Radius;
     union
     {
-        projectile_entity_sun   Sun;
-        projectile_entity_pea   Pea;
+        projectile_entity_sun           Sun;
+        projectile_entity_pea           Pea;
+        projectile_entity_fire_pea      FirePea;
     };
 };
 
 struct game_garden_grid
 {
-    vec2                    MinPoint;
-    vec2                    MaxPoint;
+    vec2                                MinPoint;
+    vec2                                MaxPoint;
     
-    u32                     CellCountX;
-    u32                     CellCountY;
-    plant_entity*           PlantEntities;
+    u32                                 CellCountX;
+    u32                                 CellCountY;
+    plant_entity*                       PlantEntities;
     
-    u32                     MaxZombieCount;
-    u32                     CurrentZombieCount;
-    zombie_entity*          ZombieEntities;
+    u32                                 MaxZombieCount;
+    u32                                 CurrentZombieCount;
+    zombie_entity*                      ZombieEntities;
 
-    u32                     MaxProjectileCount;
-    u32                     CurrentProjectileCount;
-    projectile_entity*      ProjectileEntities;
+    u32                                 MaxProjectileCount;
+    u32                                 CurrentProjectileCount;
+    projectile_entity*                  ProjectileEntities;
 
-    f32                     SpawnZombieMinDelay;
-    f32                     SpawnZombieMaxDelay;
-    f32                     SpawnNextZombieDelay;
-    f32                     SpawnNextZombieTimer;
+    f32                                 SpawnZombieMinDelay;
+    f32                                 SpawnZombieMaxDelay;
+    f32                                 SpawnNextZombieDelay;
+    f32                                 SpawnNextZombieTimer;
 
-    random_series           RandomSeries;
+    random_series                       RandomSeries;
 };
 
 struct game_sun_counter
 {
-    vec2    MinPoint;
-    vec2    MaxPoint;
+    vec2                                MinPoint;
+    vec2                                MaxPoint;
 
-    f32     BorderThickness;
-    vec2    SunAmountCenterPercentage;
-    f32     SunAmountHeightPercentage;
-    vec2    SunThumbnailCenterPercentage;
-    vec2    SunThumbnailSizePercentage;
-    vec2    SunCostShelfCenterPercentage;
-    vec2    SunCostShelfSizePercentage;
+    f32                                 BorderThickness;
+    vec2                                SunAmountCenterPercentage;
+    f32                                 SunAmountHeightPercentage;
+    vec2                                SunThumbnailCenterPercentage;
+    vec2                                SunThumbnailSizePercentage;
+    vec2                                SunCostShelfCenterPercentage;
+    vec2                                SunCostShelfSizePercentage;
 
-    u32     SunAmount;
+    u32                                 SunAmount;
 };
 
 struct game_seed_packet
 {
-    vec2        SunCostCenterPercentage;
-    f32         SunCostHeightPercentage;
-    vec2        ThumbnailCenterPercentage;
-    vec2        ThumbnailSizePercentage;
+    vec2                                SunCostCenterPercentage;
+    f32                                 SunCostHeightPercentage;
+    vec2                                ThumbnailCenterPercentage;
+    vec2                                ThumbnailSizePercentage;
 
-    plant_type  PlantType;
-    u32         SunCost;
-    f32         CooldownDelay;
-    b8          IsInCooldown;
-    f32         CooldownTimer;
+    plant_type                          PlantType;
+    u32                                 SunCost;
+    f32                                 CooldownDelay;
+    b8                                  IsInCooldown;
+    f32                                 CooldownTimer;
 };
 
 struct game_plant_selector
 {
-    vec2                MinPoint;
-    vec2                MaxPoint;
+    vec2                                MinPoint;
+    vec2                                MaxPoint;
 
-    f32                 BorderThickness;
-    f32                 SeedPacketBorderPadding;
-    f32                 SeedPacketSpace;
-    f32                 SeedPacketAspectRatio;
+    f32                                 BorderThickness;
+    f32                                 SeedPacketBorderPadding;
+    f32                                 SeedPacketSpace;
+    f32                                 SeedPacketAspectRatio;
 
-    u32                 SeedPacketCount;
-    game_seed_packet*   SeedPackets;
-    vec2                SeedPacketSize;
+    u32                                 SeedPacketCount;
+    game_seed_packet*                   SeedPackets;
+    vec2                                SeedPacketSize;
 
-    b8                  HasSeedPacketSelected;
-    u32                 SelectedSeedPacketIndex;
-    vec2                PlantPreviewCenterPosition;
+    b8                                  HasSeedPacketSelected;
+    u32                                 SelectedSeedPacketIndex;
+    vec2                                PlantPreviewCenterPosition;
 };
 
 struct game_plant_config
 {
-    u32             SunCost;
-    f32             PlantCooldownDelay;
-    f32             Health;
-    vec2            Dimensions;
-    vec2            RenderScale;
-    vec2            RenderOffset;
-    game_asset_id   AssetID;
+    u32                                 SunCost;
+    f32                                 PlantCooldownDelay;
+    f32                                 Health;
+    vec2                                Dimensions;
+    vec2                                RenderScale;
+    vec2                                RenderOffset;
+    game_asset_id                       AssetID;
 };
 
 struct game_zombie_config
 {
-    f32             Health;
-    vec2            Dimensions;
-    vec2            RenderScale;
-    vec2            RenderOffset;
-    game_asset_id   AssetID;
+    f32                                 Health;
+    vec2                                Dimensions;
+    vec2                                RenderScale;
+    vec2                                RenderOffset;
+    game_asset_id                       AssetID;
 };
 
 struct game_projectile_config
 {
-    vec2 RenderScale;
-    vec2 RenderOffset;
+    vec2                                RenderScale;
+    vec2                                RenderOffset;
+    game_asset_id                       AssetID;
 };
 
 struct game_config
 {
-    game_plant_config       Plants      [PLANT_TYPE_MAX_COUNT];
-    game_zombie_config      Zombies     [ZOMBIE_TYPE_MAX_COUNT];
-    game_projectile_config  Projectiles [PROJECTILE_TYPE_MAX_COUNT];
+    game_plant_config                   Plants      [PLANT_TYPE_MAX_COUNT];
+    game_zombie_config                  Zombies     [ZOMBIE_TYPE_MAX_COUNT];
+    game_projectile_config              Projectiles [PROJECTILE_TYPE_MAX_COUNT];
 };
 
 struct game_state
 {
-    memory_arena*       PermanentArena;
-    memory_arena*       TransientArena;
-    game_assets         Assets;
-    renderer            Renderer;
-    game_camera         Camera;
-    game_garden_grid    GardenGrid;
-    game_sun_counter    SunCounter;
-    game_plant_selector PlantSelector;
-    game_config         Config;
+    memory_arena*                       PermanentArena;
+    memory_arena*                       TransientArena;
+    game_assets                         Assets;
+    renderer                            Renderer;
+    game_camera                         Camera;
+    game_garden_grid                    GardenGrid;
+    game_sun_counter                    SunCounter;
+    game_plant_selector                 PlantSelector;
+    game_config                         Config;
 };
 
 //====================================================================================================================//
@@ -497,13 +506,6 @@ Game_SetDefaultConfiguration(game_state* GameState)
         PlantConfig->AssetID = AssetIDValue;                                                                            \
     }
 
-    CONFIGURE_DEFAULT_PLANT(SUNFLOWER, GAME_ASSET_ID_PLANT_SUNFLOWER);
-    CONFIGURE_DEFAULT_PLANT(PEASHOOTER, GAME_ASSET_ID_PLANT_PEASHOOTER);
-    CONFIGURE_DEFAULT_PLANT(REPEATER, GAME_ASSET_ID_PLANT_REPEATER);
-    CONFIGURE_DEFAULT_PLANT(TORCHWOOD, GAME_ASSET_ID_PLANT_TORCHWOOD);
-
-#undef CONFIGURE_DEFAULT_PLANT
-
 #define CONFIGURE_DEFAULT_ZOMBIE(ZOMBIE_NAME, AssetIDValue)                                                                 \
     {                                                                                                                       \
         const zombie_type ZombieType = ZOMBIE_TYPE_##ZOMBIE_NAME;                                                           \
@@ -515,9 +517,31 @@ Game_SetDefaultConfiguration(game_state* GameState)
         ZombieConfig->AssetID = AssetIDValue;                                                                               \
     }
 
+#define CONFIGURE_DEFAULT_PROJECTILE(PROJECTILE_NAME, AssetIDValue)                             \
+    {                                                                                           \
+        const projectile_type ProjectileType = PROJECTILE_TYPE_##PROJECTILE_NAME;               \
+        game_projectile_config* ProjectileConfig = &Config->Projectiles[ProjectileType];        \
+        ProjectileConfig->RenderScale = Vec2(PROJECTILE_##PROJECTILE_NAME##_RENDER_SCALE_X,     \
+                                             PROJECTILE_##PROJECTILE_NAME##_RENDER_SCALE_Y);    \
+        ProjectileConfig->RenderOffset = Vec2(PROJECTILE_##PROJECTILE_NAME##_RENDER_OFFSET_X,   \
+                                             PROJECTILE_##PROJECTILE_NAME##_RENDER_OFFSET_Y);   \
+        ProjectileConfig->AssetID = AssetIDValue;                                               \
+    }
+
+    CONFIGURE_DEFAULT_PLANT(SUNFLOWER, GAME_ASSET_ID_PLANT_SUNFLOWER);
+    CONFIGURE_DEFAULT_PLANT(PEASHOOTER, GAME_ASSET_ID_PLANT_PEASHOOTER);
+    CONFIGURE_DEFAULT_PLANT(REPEATER, GAME_ASSET_ID_PLANT_REPEATER);
+    CONFIGURE_DEFAULT_PLANT(TORCHWOOD, GAME_ASSET_ID_PLANT_TORCHWOOD);
+
+    CONFIGURE_DEFAULT_PROJECTILE(SUN, GAME_ASSET_ID_PROJECTILE_SUN);
+    CONFIGURE_DEFAULT_PROJECTILE(PEA, GAME_ASSET_ID_PROJECTILE_PEA);
+    CONFIGURE_DEFAULT_PROJECTILE(FIRE_PEA, GAME_ASSET_ID_PROJECTILE_FIRE_PEA);
+
     CONFIGURE_DEFAULT_ZOMBIE(NORMAL, GAME_ASSET_ID_ZOMBIE_NORMAL);
 
+#undef CONFIGURE_DEFAULT_PLANT
 #undef CONFIGURE_DEFAULT_ZOMBIE
+#undef CONFIGURE_DEFAULT_PROJECTILE
 }
 
 function struct game_state*

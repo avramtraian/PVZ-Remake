@@ -209,7 +209,7 @@ GameGardenGrid_UpdatePlantSunflower(game_state* GameState, game_platform_state* 
                                                                                PROJECTILE_TYPE_SUN,
                                                                                CellIndexY);
         SunProjectile->Position = Position;
-        SunProjectile->Sun.Radius = Sunflower->SunRadius;
+        SunProjectile->Radius = Sunflower->SunRadius;
         SunProjectile->Sun.SunAmount = Sunflower->SunAmount;
         SunProjectile->Sun.DecayDelay = Sunflower->SunDecayDelay;
     }
@@ -220,23 +220,30 @@ GameGardenGrid_UpdatePlantSunflower(game_state* GameState, game_platform_state* 
 }
 
 internal inline b8
+GameGardenGrid_AreZombiesOnTheLane(game_garden_grid* GardenGrid, u32 CellIndexY)
+{
+    b8 AreZombiesOnTheLane = false;
+    for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
+    {
+        const zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
+        if (ZombieEntity->CellIndexY == CellIndexY)
+        {
+            AreZombiesOnTheLane = true;
+            break;
+        }
+    }
+    return AreZombiesOnTheLane;
+}
+
+internal inline b8
 GameGardenGrid_ShootPeaProjectile(game_garden_grid* GardenGrid, u32 CellIndexY, vec2 Position,
-                                  f32 Velocity, f32 Damage, f32 Radius, pea_type PeaType,
-                                  b8 ShootOnlyWhenThereAreZombiesOnTheLane)
+                                  f32 Velocity, f32 Damage, f32 Radius, b8 ShootOnlyWhenThereAreZombiesOnTheLane)
 {
     b8 ShouldShoot = true;
     if (ShootOnlyWhenThereAreZombiesOnTheLane)
     {
-        ShouldShoot = false;
-        for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
-        {
-            const zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
-            if (ZombieEntity->CellIndexY == CellIndexY)
-            {
-                ShouldShoot = true;
-                break;
-            }
-        }
+        // NOTE(Traian): Only shoot when there are zombies on the plant's lane.
+        ShouldShoot = GameGardenGrid_AreZombiesOnTheLane(GardenGrid, CellIndexY);
     }
 
     if (ShouldShoot)
@@ -246,10 +253,9 @@ GameGardenGrid_ShootPeaProjectile(game_garden_grid* GardenGrid, u32 CellIndexY, 
                                                                                PROJECTILE_TYPE_PEA,
                                                                                CellIndexY);
         PeaProjectile->Position = Position;
-        PeaProjectile->Pea.Type = PeaType;
+        PeaProjectile->Radius = Radius;
         PeaProjectile->Pea.Velocity = Velocity;
         PeaProjectile->Pea.Damage = Damage;
-        PeaProjectile->Pea.Radius = Radius;
     }
 
     return ShouldShoot;
@@ -269,9 +275,8 @@ GameGardenGrid_UpdatePlantPeashooter(game_state* GameState, game_platform_state*
 
         if (GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
                                               Peashooter->ProjectileVelocity, Peashooter->ProjectileDamage,
-                                              Peashooter->ProjectileRadius, PEA_TYPE_NORMAL, true))
+                                              Peashooter->ProjectileRadius, true))
         {
-            // NOTE(Traian): Reset the shoot timer.
             Peashooter->ShootTimer = 0.0F;
         }
     }
@@ -299,7 +304,7 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
 
             if (GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
                                                   Repeater->ProjectileVelocity, Repeater->ProjectileDamage,
-                                                  Repeater->ProjectileRadius, PEA_TYPE_NORMAL, true))
+                                                  Repeater->ProjectileRadius, true))
             {
                 Repeater->ShootTimer = 0.0F;
                 Repeater->IsInShootSequence = true;
@@ -316,7 +321,7 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
         {
             GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
                                               Repeater->ProjectileVelocity, Repeater->ProjectileDamage,
-                                              Repeater->ProjectileRadius, PEA_TYPE_NORMAL, false);
+                                              Repeater->ProjectileRadius, false);
             Repeater->ShootTimer = 0.0F;
             Repeater->IsInShootSequence = false;
         }
@@ -543,8 +548,6 @@ GameGardenGrid_UpdateZombies(game_state* GameState, game_platform_state* Platfor
                 break;
             }
 
-            
-
             // NOTE(Traian): While there is no hard requirement that this switch is exhaustive, it would be weird to have a
             // zombie type that does *nothing* (the default behaviour doesn't provide any kind of movement or attack logic).
             switch (ZombieEntity->Type)
@@ -560,113 +563,176 @@ GameGardenGrid_UpdateZombies(game_state* GameState, game_platform_state* Platfor
 }
 
 internal void
-GameGardenGrid_UpdateProjectiles(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime)
+GameGardenGrid_UpdateProjectileSun(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                   projectile_entity* ProjectileEntity)
 {
-	game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    projectile_entity_sun* Sun = &ProjectileEntity->Sun;
 
     const vec2 GameMousePosition = Game_TransformNDCPointToGame(&GameState->Camera,
                                                                 Vec2(PlatformState->Input->MousePositionX,
                                                                      PlatformState->Input->MousePositionY));
 
+    if (Vec2_DistanceSquared(ProjectileEntity->Position, GameMousePosition) <= (ProjectileEntity->Radius * ProjectileEntity->Radius))
+    {
+        if (PlatformState->Input->Keys[GAME_INPUT_KEY_LEFT_MOUSE_BUTTON].WasPressedThisFrame)
+        {
+            ASSERT(!ProjectileEntity->IsPendingDestroy);
+            GameState->SunCounter.SunAmount += Sun->SunAmount;
+            ProjectileEntity->IsPendingDestroy = true;
+        }
+    }
+
+    if (Sun->DecayTimer >= Sun->DecayDelay)
+    {
+        Sun->DecayTimer = 0.0F;
+        ProjectileEntity->IsPendingDestroy = true;
+    }
+    else
+    {
+        Sun->DecayTimer += DeltaTime;
+    }
+}
+
+internal zombie_entity*
+GameGardenGrid_UpdateLinearProjectile(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                      projectile_entity* ProjectileEntity, f32 Velocity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    ProjectileEntity->Position.X += Velocity * DeltaTime;
+
+    zombie_entity* ClosestZombieEntity = NULL;
+    f32 ClosestZombieDistance;
+
+    for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
+    {
+        zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
+        if (!ZombieEntity->IsPendingDestroy && (ZombieEntity->Health > 0) &&
+            (ZombieEntity->CellIndexY == ProjectileEntity->CellIndexY))
+        {
+            const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
+            const f32 SignedDistance = ZombieEntity->Position.X - ProjectileEntity->Position.X;
+            if (Abs(SignedDistance) <= (0.5F * ZombieConfig->Dimensions.X))
+            {
+                // NOTE(Traian): The projectile is inside the zombie.
+                if (!ClosestZombieEntity || (ClosestZombieDistance > Abs(SignedDistance)))
+                {
+                    ClosestZombieEntity = ZombieEntity;
+                    ClosestZombieDistance = Abs(SignedDistance);
+                }
+            }
+        }
+    }
+
+    return ClosestZombieEntity;
+}
+
+internal void
+GameGardenGrid_UpdateProjectilePea(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                   projectile_entity* ProjectileEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    projectile_entity_pea* Pea = &ProjectileEntity->Pea;
+    
+    zombie_entity* HitZombieEntity = GameGardenGrid_UpdateLinearProjectile(GameState, PlatformState, DeltaTime,
+                                                                           ProjectileEntity, Pea->Velocity);
+    if (HitZombieEntity)
+    {
+        HitZombieEntity->Health -= Pea->Damage;
+        ProjectileEntity->IsPendingDestroy = true;
+    }
+
+    if (!ProjectileEntity->IsPendingDestroy)
+    {
+        const s32 GridCellIndexX = GameGardenGrid_GetCellIndexX(GardenGrid, ProjectileEntity->Position.X);
+        const s32 GridCellIndexY = GameGardenGrid_GetCellIndexY(GardenGrid, ProjectileEntity->Position.Y);
+        if ((0 <= GridCellIndexX && GridCellIndexX < GardenGrid->CellCountX) &&
+            (0 <= GridCellIndexY && GridCellIndexY < GardenGrid->CellCountY))
+        {
+            const u32 PlantEntityIndex = (GridCellIndexY * GardenGrid->CellCountX) + GridCellIndexX;
+            plant_entity* PlantEntity = GardenGrid->PlantEntities + PlantEntityIndex;
+            
+            const f32 CellPointX = GameGardenGrid_GetCellPositionX(GardenGrid, GridCellIndexX);
+            if (PlantEntity->Type == PLANT_TYPE_TORCHWOOD && ProjectileEntity->Position.X >= CellPointX)
+            {
+                projectile_entity_fire_pea FirePea = {};
+                FirePea.Velocity = Pea->Velocity;
+                FirePea.Damage = Pea->Damage;
+
+                ProjectileEntity->Type = PROJECTILE_TYPE_FIRE_PEA;
+                ProjectileEntity->FirePea = FirePea;
+            }
+        }
+    }
+}
+
+internal void
+GameGardenGrid_UpdateProjectileFirePea(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                       projectile_entity* ProjectileEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    projectile_entity_fire_pea* FirePea = &ProjectileEntity->FirePea;
+    
+    zombie_entity* HitZombieEntity = GameGardenGrid_UpdateLinearProjectile(GameState, PlatformState, DeltaTime,
+                                                                           ProjectileEntity, FirePea->Velocity);
+    if (HitZombieEntity)
+    {
+        HitZombieEntity->Health -= FirePea->Damage;
+        ProjectileEntity->IsPendingDestroy = true;
+    }
+}
+
+internal void
+GameGardenGrid_UpdateProjectiles(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
 	for (u32 ProjectileIndex = 0; ProjectileIndex < GardenGrid->CurrentProjectileCount; ++ProjectileIndex)
     {
         projectile_entity* ProjectileEntity = GardenGrid->ProjectileEntities + ProjectileIndex;
-        switch(ProjectileEntity->Type)
+        const game_projectile_config* ProjectileConfig = &GameState->Config.Projectiles[ProjectileEntity->Type];
+
+        if (!ProjectileEntity->IsPendingDestroy)
         {
-            case PROJECTILE_TYPE_SUN:
+            const vec2 Dimensions = Vec2(2.0F * ProjectileEntity->Radius, 2.0F * ProjectileEntity->Radius);
+            const vec2 RenderScale = ProjectileConfig->RenderScale;
+            const vec2 RenderOffset = ProjectileConfig->RenderOffset;
+            const vec2 RenderDimensions = Vec2(Dimensions.X * RenderScale.X, Dimensions.Y * RenderScale.Y);
+            const f32 HalfDimensionsX = 0.5F * Dimensions.X;
+            const f32 HalfRenderDimensionsX = 0.5F * RenderDimensions.X;
+
+            // NOTE(Traian): Check if both the projectile logic bounding box and the render bounding box have
+            // gone out of the visible area, and if so mark is pending-destroy.
+            if ((ProjectileEntity->Position.X <= -HalfDimensionsX) ||
+                (ProjectileEntity->Position.X >= GameState->Camera.UnitCountX + HalfDimensionsX) ||
+                (ProjectileEntity->Position.X + RenderOffset.X <= -HalfRenderDimensionsX) ||
+                (ProjectileEntity->Position.X + RenderOffset.X >= GameState->Camera.UnitCountX + HalfRenderDimensionsX))
             {
-                projectile_entity_sun* Sun = &ProjectileEntity->Sun;
-
-                if (Vec2_DistanceSquared(ProjectileEntity->Position, GameMousePosition) <= (Sun->Radius * Sun->Radius))
-                {
-                    if (PlatformState->Input->Keys[GAME_INPUT_KEY_LEFT_MOUSE_BUTTON].WasPressedThisFrame)
-                    {
-                        ASSERT(!ProjectileEntity->IsPendingDestroy);
-                        GameState->SunCounter.SunAmount += Sun->SunAmount;
-                        ProjectileEntity->IsPendingDestroy = true;
-                    }
-                }
-
-                if (Sun->DecayTimer >= Sun->DecayDelay)
-                {
-                    Sun->DecayTimer = 0.0F;
-                    ProjectileEntity->IsPendingDestroy = true;
-                }
-                else
-                {
-                    Sun->DecayTimer += DeltaTime;
-                }
+                ProjectileEntity->IsPendingDestroy = true;
+                continue;
             }
-            break;
 
-            case PROJECTILE_TYPE_PEA:
+            // NOTE(Traian): There is no hard requirement that this switch is exhaustive, however it would be weird to
+            // exist a projectile type that has no logic attached to it.
+            switch(ProjectileEntity->Type)
             {
-                projectile_entity_pea* Pea = &ProjectileEntity->Pea;
-
-                ProjectileEntity->Position.X += Pea->Velocity * DeltaTime;
-                if ((ProjectileEntity->Position.X <= -1.0F) ||
-                    (ProjectileEntity->Position.X >= GameState->Camera.UnitCountX + 1.0F))
+                case PROJECTILE_TYPE_SUN:
                 {
-                    // NOTE(Traian): The projectile has went out of range.
-                    ProjectileEntity->IsPendingDestroy = true;
+                    GameGardenGrid_UpdateProjectileSun(GameState, PlatformState, DeltaTime, ProjectileEntity);   
                 }
+                break;
 
-                if (!ProjectileEntity->IsPendingDestroy)
+                case PROJECTILE_TYPE_PEA:
                 {
-                    const s32 GridCellIndexX = GameGardenGrid_GetCellIndexX(GardenGrid, ProjectileEntity->Position.X);
-                    const s32 GridCellIndexY = GameGardenGrid_GetCellIndexY(GardenGrid, ProjectileEntity->Position.Y);
-                    if ((0 <= GridCellIndexX && GridCellIndexX < GardenGrid->CellCountX) &&
-                        (0 <= GridCellIndexY && GridCellIndexY < GardenGrid->CellCountY))
-                    {
-                        const u32 PlantEntityIndex = (GridCellIndexY * GardenGrid->CellCountX) + GridCellIndexX;
-                        plant_entity* PlantEntity = GardenGrid->PlantEntities + PlantEntityIndex;
-                        
-                        const f32 CellPointX = GameGardenGrid_GetCellPositionX(GardenGrid, GridCellIndexX);
-                        if (PlantEntity->Type == PLANT_TYPE_TORCHWOOD && ProjectileEntity->Position.X >= CellPointX)
-                        {
-                            if (Pea->Type != PEA_TYPE_FIRE)
-                            {
-                                Pea->Damage *= PlantEntity->Torchwood.DamageMultiplier;
-                                Pea->Type = PEA_TYPE_FIRE;
-                            }
-                        }
-                    }
+                    GameGardenGrid_UpdateProjectilePea(GameState, PlatformState, DeltaTime, ProjectileEntity);
                 }
+                break;
 
-                if (!ProjectileEntity->IsPendingDestroy)
+                case PROJECTILE_TYPE_FIRE_PEA:
                 {
-                    zombie_entity* ClosestZombieEntity = NULL;
-                    f32 ClosestZombieDistance;
-
-                    for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
-                    {
-                        zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
-                        if (!ZombieEntity->IsPendingDestroy && (ZombieEntity->Health > 0) &&
-                            (ZombieEntity->CellIndexY == ProjectileEntity->CellIndexY))
-                        {
-                            const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
-                            const f32 SignedDistance = ZombieEntity->Position.X - ProjectileEntity->Position.X;
-                            if (Abs(SignedDistance) <= (0.5F * ZombieConfig->Dimensions.X))
-                            {
-                                // NOTE(Traian): The projectile is inside the zombie.
-                                if (!ClosestZombieEntity || (ClosestZombieDistance > Abs(SignedDistance)))
-                                {
-                                    ClosestZombieEntity = ZombieEntity;
-                                    ClosestZombieDistance = Abs(SignedDistance);
-                                }
-                            }
-                        }
-                    }
-
-                    if (ClosestZombieEntity)
-                    {
-                        // NOTE(Traian): Damage the hit zombie and mark the projectile as pending destroy.
-                        ClosestZombieEntity->Health -= Pea->Damage;
-                        ProjectileEntity->IsPendingDestroy = true;
-                    }
+                    GameGardenGrid_UpdateProjectileFirePea(GameState, PlatformState, DeltaTime, ProjectileEntity);
                 }
+                break;
             }
-            break;
         }
     }
 }
@@ -832,64 +898,35 @@ GameGardenGrid_RenderProjectiles(game_state* GameState, game_platform_state* Pla
 	for (u32 ProjectileIndex = 0; ProjectileIndex < GardenGrid->CurrentProjectileCount; ++ProjectileIndex)
     {
         const projectile_entity* ProjectileEntity = GardenGrid->ProjectileEntities + ProjectileIndex;
-
-        const f32 SUN_ADDITIONAL_Z_OFFSET = 0.0F;
-        const f32 PEA_ADDITIONAL_Z_OFFSET = 1.0F;
-
         if (!ProjectileEntity->IsPendingDestroy)
         {
-            switch (ProjectileEntity->Type)
+            const game_projectile_config* ProjectileConfig = &GameState->Config.Projectiles[ProjectileEntity->Type];
+            
+            f32 RenderZOffset = GARDEN_GRID_PROJECTILES_BASE_Z_OFFSET;
+            if (ProjectileEntity->Type != PROJECTILE_TYPE_SUN)
             {
-                case PROJECTILE_TYPE_SUN:
-                {
-                    const projectile_entity_sun* Sun = &ProjectileEntity->Sun;
-                    const vec2 Dimensions = Vec2(2.0F * Sun->Radius * PROJECTILE_SUN_RENDER_DIMENSIONS_MULTIPLIER_X,
-                                                 2.0F * Sun->Radius * PROJECTILE_SUN_RENDER_DIMENSIONS_MULTIPLIER_Y);
-                    const vec2 MinPoint = ProjectileEntity->Position - (0.5F * Dimensions);
-                    const vec2 MaxPoint = MinPoint + Dimensions;
+                // NOTE(Traian): Always render the suns behind any other kind of projectiles.
+                RenderZOffset += 1.0F;
+            }
 
-                    asset* TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_SUN);
-                    Renderer_PushPrimitive(&GameState->Renderer,
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                           GARDEN_GRID_PROJECTILES_BASE_Z_OFFSET + SUN_ADDITIONAL_Z_OFFSET, Color4(1.0),
-                                           Vec2(0.0F), Vec2(1.0F),
-                                           &TextureAsset->Texture.RendererTexture);
-                }
-                break;
+            const vec2 Dimensions = Vec2(2.0F * ProjectileEntity->Radius, 2.0F * ProjectileEntity->Radius);
+            const vec2 RenderScale = ProjectileConfig->RenderScale;
+            const vec2 RenderOffset = ProjectileConfig->RenderOffset;
+            const vec2 RenderDimensions = Vec2(Dimensions.X * RenderScale.X, Dimensions.Y * RenderScale.Y);
+            const vec2 RenderOffsetScale = Vec2(ProjectileEntity->Radius / 1.0F, ProjectileEntity->Radius / 1.0F);
 
-                case PROJECTILE_TYPE_PEA:
-                {
-                    const projectile_entity_pea* Pea = &ProjectileEntity->Pea;
+            const vec2 MinPoint = ProjectileEntity->Position - (0.5F * RenderDimensions) +
+                                  Vec2(RenderOffset.X * RenderOffsetScale.X, RenderOffset.Y * RenderOffsetScale.Y);
+            const vec2 MaxPoint = MinPoint + RenderDimensions;
 
-                    vec2 Dimensions = Vec2(Pea->Radius);
-                    vec2 MinPoint = {};
-                    vec2 MaxPoint = {};
-
-                    asset* TextureAsset = NULL;
-                    if (Pea->Type == PEA_TYPE_NORMAL)
-                    {
-                        MinPoint = ProjectileEntity->Position - (0.5F * Dimensions);
-                        MaxPoint = MinPoint + Dimensions;
-                        TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_PEA);
-                    }
-                    else if (Pea->Type == PEA_TYPE_FIRE)
-                    {
-                        Dimensions.X *= PROJECTILE_PEA_FIRE_DIMENSIONS_MULTIPLIER_X;
-                        Dimensions.Y *= PROJECTILE_PEA_FIRE_DIMENSIONS_MULTIPLIER_Y;
-                        MinPoint = ProjectileEntity->Position - (0.5F * Dimensions);
-                        MaxPoint = MinPoint + Dimensions;
-                        TextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PROJECTILE_PEA_FIRE);
-                    }
-                    
-                    Renderer_PushPrimitive(&GameState->Renderer,
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                           GARDEN_GRID_PROJECTILES_BASE_Z_OFFSET + PEA_ADDITIONAL_Z_OFFSET, Color4(1.0),
-                                           Vec2(0.0F), Vec2(1.0F),
-                                           &TextureAsset->Texture.RendererTexture);
-                }
-                break;
+            asset* TextureAsset = Asset_Get(&GameState->Assets, ProjectileConfig->AssetID);
+            if (TextureAsset)
+            {
+                Renderer_PushPrimitive(&GameState->Renderer,
+                                       Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
+                                       Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
+                                       RenderZOffset, Color4(1.0), Vec2(0.0F), Vec2(1.0F),
+                                       &TextureAsset->Texture.RendererTexture);   
             }
         }
     }
