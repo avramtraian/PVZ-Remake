@@ -580,7 +580,6 @@ Game_Initialize(platform_game_memory* GameMemory)
         PANIC("Failed to open the asset file!");
     }
     Asset_Initialize(&GameState->Assets, GameState->TransientArena, AssetFileHandle);
-    Asset_LoadSync(&GameState->Assets, GAME_ASSET_ID_FONT_COMIC_SANS);
 
     //
     // NOTE(Traian): Initialize the renderer.
