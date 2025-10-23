@@ -207,6 +207,11 @@ struct game_garden_grid
     f32                                 SpawnNextZombieDelay;
     f32                                 SpawnNextZombieTimer;
 
+    f32                                 SpawnNaturalSunMinDelay;
+    f32                                 SpawnNaturalSunMaxDelay;
+    f32                                 SpawnNextNaturalSunDelay;
+    f32                                 SpawnNextNaturalSunTimer;
+
     random_series                       RandomSeries;
 };
 

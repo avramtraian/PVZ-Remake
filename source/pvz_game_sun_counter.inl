@@ -36,10 +36,13 @@ GameSunCounter_Update(game_state* GameState, game_platform_state* PlatformState,
     SunCounter->MaxPoint.X = GameState->Camera.UnitCountX * SUN_COUNTER_MAX_POINT_PERCENTAGE.X;
     SunCounter->MaxPoint.Y = GameState->Camera.UnitCountY * SUN_COUNTER_MAX_POINT_PERCENTAGE.Y;
 
-    if (PlatformState->Input->Keys[GAME_INPUT_KEY_F2].WasPressedThisFrame)
+#ifdef PVZ_INTERNAL
+    // NOTE(Traian): For debugging purposes, it is useful to have infinte sun amount.
+    if (PlatformState->Input->Keys[GAME_INPUT_KEY_F1].WasPressedThisFrame)
     {
         SunCounter->SunAmount += 25;
     }
+#endif // PVZ_INTERNAL
 }
 
 //====================================================================================================================//

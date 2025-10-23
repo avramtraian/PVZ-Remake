@@ -87,3 +87,6 @@
 #define PROJECTILE_FIRE_PEA_RENDER_SCALE_Y                  (1.3F)
 #define PROJECTILE_FIRE_PEA_RENDER_OFFSET_X                 (0.0F)
 #define PROJECTILE_FIRE_PEA_RENDER_OFFSET_Y                 (0.0F)
+
+#define NATURAL_SUN_SPAWN_MIN_DELAY							(3.0F)
+#define NATURAL_SUN_SPAWN_MAX_DELAY							(5.0F)

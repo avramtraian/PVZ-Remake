@@ -32,6 +32,10 @@ GameGardenGrid_Initialize(game_state* GameState)
     GardenGrid->SpawnZombieMinDelay = 1.0F;
     GardenGrid->SpawnZombieMaxDelay = 3.0F;
 
+    GardenGrid->SpawnNaturalSunMinDelay = NATURAL_SUN_SPAWN_MIN_DELAY;
+    GardenGrid->SpawnNaturalSunMaxDelay = NATURAL_SUN_SPAWN_MAX_DELAY;
+    GardenGrid->SpawnNextNaturalSunDelay = 0.5F * (GardenGrid->SpawnNaturalSunMinDelay + GardenGrid->SpawnNaturalSunMaxDelay);
+
     // NOTE(Traian): Initialize the random series.
     Random_InitializeSeries(&GardenGrid->RandomSeries);
 }
@@ -722,6 +726,31 @@ GameGardenGrid_Update(game_state* GameState, game_platform_state* PlatformState,
     GardenGrid->MinPoint.Y = GameState->Camera.UnitCountY * GARDEN_MIN_POINT_PERCENTAGE.Y;
     GardenGrid->MaxPoint.X = GameState->Camera.UnitCountX * GARDEN_MAX_POINT_PERCENTAGE.X;
     GardenGrid->MaxPoint.Y = GameState->Camera.UnitCountY * GARDEN_MAX_POINT_PERCENTAGE.Y;
+
+    //
+    // NOTE(Traian): Spawn natural suns.
+    //
+
+    if (GardenGrid->SpawnNextNaturalSunTimer >= GardenGrid->SpawnNextNaturalSunDelay)
+    {
+        GardenGrid->SpawnNextNaturalSunTimer = 0.0F;
+        GardenGrid->SpawnNextNaturalSunDelay = Random_RangeF32(&GardenGrid->RandomSeries,
+                                                               GardenGrid->SpawnNaturalSunMinDelay,
+                                                               GardenGrid->SpawnNaturalSunMaxDelay);
+
+        projectile_entity* SunEntity = GameGardenGrid_PushProjectileEntity(GardenGrid,
+                                                                           PROJECTILE_TYPE_SUN,
+                                                                           0);
+        SunEntity->Position = Random_PointInRectangle2D(&GardenGrid->RandomSeries,
+                                                        Rect2D(GardenGrid->MinPoint, GardenGrid->MaxPoint));
+        SunEntity->Radius = PLANT_SUNFLOWER_SUN_RADIUS;
+        SunEntity->Sun.SunAmount = PLANT_SUNFLOWER_SUN_AMOUNT;
+        SunEntity->Sun.DecayDelay = PLANT_SUNFLOWER_SUN_DECAY;
+    }
+    else
+    {
+        GardenGrid->SpawnNextNaturalSunTimer += DeltaTime;
+    }
 
     //
     // NOTE(Traian): Update components.
