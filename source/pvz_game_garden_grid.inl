@@ -37,7 +37,7 @@ GameGardenGrid_Initialize(game_state* GameState)
     GardenGrid->SpawnNextNaturalSunDelay = 0.5F * (GardenGrid->SpawnNaturalSunMinDelay + GardenGrid->SpawnNaturalSunMaxDelay);
 
     // NOTE(Traian): Initialize the random series.
-    Random_InitializeSeries(&GardenGrid->RandomSeries);
+    Platform_SeedRandomSeries(&GardenGrid->RandomSeries);
 }
 
 //====================================================================================================================//

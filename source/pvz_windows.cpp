@@ -402,6 +402,16 @@ Win32_GetPerformanceCounter()
     }
 }
 
+function void
+Platform_SeedRandomSeries(random_series* Series)
+{
+    // NOTE(Traian): Use low bits as seed, high bits as sequence for extra entropy.
+    const u64 Counter = Win32_GetPerformanceCounter();
+    const u64 Seed = (u64)(Counter >> 0);
+    const u64 Sequence = (u64)(Counter >> 32);
+    Random_InitializeSeries(Series, Seed, Sequence);
+}
+
 internal u64
 Win32_GetPerformanceCounterFrequency()
 {

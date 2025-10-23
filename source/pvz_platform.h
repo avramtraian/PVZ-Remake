@@ -175,8 +175,10 @@ struct game_platform_state
     struct renderer_image*      RenderTarget;
 };
 
-function struct game_state*     Game_Initialize         (platform_game_memory* GameMemory);
+function void                   Platform_SeedRandomSeries   (struct random_series* Series);
 
-function void                   Game_UpdateAndRender    (struct game_state* GameState,
-                                                         game_platform_state* PlatformState,
-                                                         f32 DeltaTime);
+function struct game_state*     Game_Initialize             (platform_game_memory* GameMemory);
+
+function void                   Game_UpdateAndRender        (struct game_state* GameState,
+                                                             game_platform_state* PlatformState,
+                                                             f32 DeltaTime);
