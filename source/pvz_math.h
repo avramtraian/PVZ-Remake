@@ -53,76 +53,6 @@ Math_InverseLerp(f32 ValueA, f32 ValueB, f32 InterpolatedValue)
 }
 
 //====================================================================================================================//
-//------------------------------------------------------ RANDOM ------------------------------------------------------//
-//====================================================================================================================//
-
-//
-// NOTE(Traian): The pseudo-number-generator used by the engine follows the PCG algorithm.
-// This implementation is closely tied to 'https://en.wikipedia.org/wiki/Permuted_congruential_generator'.
-//
-
-struct random_series
-{
-    u64 State;
-    u64 Increment;
-};
-
-inline u32
-Random_NextU32(random_series* Series)
-{
-    const u64 OldState = Series->State;
-    Series->State = (OldState * 6364136223846793005ULL) + Series->Increment;
-    const u32 XORShifted = ((OldState >> 18) ^ OldState) >> 27;
-    const u32 Rotated = OldState >> 59;
-    const u32 Result = (XORShifted >> Rotated) | (XORShifted << ((-Rotated) & 31));
-    return Result;
-}
-
-inline void
-Random_InitializeSeries(random_series* Series, u64 Seed = 42, u64 Sequence = 54)
-{
-    Series->State = 0;
-    Series->Increment = (Sequence << 1) | 1;
-
-    Random_NextU32(Series);
-    Series->State += Seed;
-    Random_NextU32(Series);
-}
-
-internal u32
-Random_RangeU32(random_series* Series, u32 MinBound, u32 MaxBound)
-{
-    ASSERT(MinBound <= MaxBound);
-    const u32 Result = MinBound + (Random_NextU32(Series) % (MaxBound - MinBound + 1));
-    return Result;
-}
-
-internal f32
-Random_NextF32(random_series* Series)
-{
-    const u32 NextU32 = Random_NextU32(Series);
-    const f32 Result = (f32)NextU32 / (f32)(0xFFFFFFFF);
-    return Result;
-}
-
-internal f32
-Random_RangeF32(random_series* Series, f32 MinBound, f32 MaxBound)
-{
-    // ASSERT(MinBound <= MaxBound);
-    const f32 NextF32 = Random_NextF32(Series);
-    const f32 Result = Math_Lerp(MinBound, MaxBound, NextF32);
-    return Result;
-}
-
-internal f32
-Random_SignF32(random_series* Series)
-{
-    const u32 NextU32 = Random_NextU32(Series);
-    const f32 Result = (2.0F * (f32)(NextU32 & 0x01)) - 1.0F;
-    return Result;
-}
-
-//====================================================================================================================//
 //------------------------------------------------------ VECTORS -----------------------------------------------------//
 //====================================================================================================================//
 
@@ -221,6 +151,15 @@ struct rect2D
     vec2 Min;
     vec2 Max;
 };
+
+inline rect2D
+Rect2D(vec2 Min, vec2 Max)
+{
+    rect2D Result;
+    Result.Min = Min;
+    Result.Max = Max;
+    return Result;
+}
 
 inline rect2D
 Rect2D_FromOffsetSize(vec2 Offset, vec2 Size)
@@ -374,4 +313,84 @@ LinearColor_PackToBGRA(linear_color UnpackedColor)
 {
     const u32 PackedColor = *(u32*)&UnpackedColor;
     return PackedColor;
+}
+
+//====================================================================================================================//
+//------------------------------------------------------ RANDOM ------------------------------------------------------//
+//====================================================================================================================//
+
+//
+// NOTE(Traian): The pseudo-number-generator used by the engine follows the PCG algorithm.
+// This implementation is closely tied to 'https://en.wikipedia.org/wiki/Permuted_congruential_generator'.
+//
+
+struct random_series
+{
+    u64 State;
+    u64 Increment;
+};
+
+inline u32
+Random_NextU32(random_series* Series)
+{
+    const u64 OldState = Series->State;
+    Series->State = (OldState * 6364136223846793005ULL) + Series->Increment;
+    const u32 XORShifted = ((OldState >> 18) ^ OldState) >> 27;
+    const u32 Rotated = OldState >> 59;
+    const u32 Result = (XORShifted >> Rotated) | (XORShifted << ((-Rotated) & 31));
+    return Result;
+}
+
+inline void
+Random_InitializeSeries(random_series* Series, u64 Seed = 42, u64 Sequence = 54)
+{
+    Series->State = 0;
+    Series->Increment = (Sequence << 1) | 1;
+
+    Random_NextU32(Series);
+    Series->State += Seed;
+    Random_NextU32(Series);
+}
+
+internal u32
+Random_RangeU32(random_series* Series, u32 MinBound, u32 MaxBound)
+{
+    ASSERT(MinBound <= MaxBound);
+    const u32 Result = MinBound + (Random_NextU32(Series) % (MaxBound - MinBound + 1));
+    return Result;
+}
+
+internal f32
+Random_NextF32(random_series* Series)
+{
+    const u32 NextU32 = Random_NextU32(Series);
+    const f32 Result = (f32)NextU32 / (f32)(0xFFFFFFFF);
+    return Result;
+}
+
+internal f32
+Random_RangeF32(random_series* Series, f32 MinBound, f32 MaxBound)
+{
+    // ASSERT(MinBound <= MaxBound);
+    const f32 NextF32 = Random_NextF32(Series);
+    const f32 Result = Math_Lerp(MinBound, MaxBound, NextF32);
+    return Result;
+}
+
+internal f32
+Random_SignF32(random_series* Series)
+{
+    const u32 NextU32 = Random_NextU32(Series);
+    const f32 Result = (2.0F * (f32)(NextU32 & 0x01)) - 1.0F;
+    return Result;
+}
+
+internal vec2
+Random_PointInRectangle2D(random_series* Series, rect2D Rectangle)
+{
+    ASSERT(!Rect2D_IsDegenerated(Rectangle));
+    vec2 Result;
+    Result.X = Random_RangeF32(Series, Rectangle.Min.X, Rectangle.Max.X);
+    Result.Y = Random_RangeF32(Series, Rectangle.Min.Y, Rectangle.Max.Y);
+    return Result;
 }
