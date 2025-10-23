@@ -21,11 +21,17 @@
 
 enum plant_type : u16
 {
+#define PVZ_ENUMERATE_PLANT_TYPES(X)        \
+    X(PLANT_TYPE_SUNFLOWER, Sunflower)      \
+    X(PLANT_TYPE_PEASHOOTER, Peashooter)    \
+    X(PLANT_TYPE_REPEATER, Repeater)        \
+    X(PLANT_TYPE_TORCHWOOD, Torchwood)      \
+    X(PLANT_TYPE_MELONPULT, Melonpult)
+
     PLANT_TYPE_NONE = 0,
-    PLANT_TYPE_SUNFLOWER,
-    PLANT_TYPE_PEASHOOTER,
-    PLANT_TYPE_REPEATER,
-    PLANT_TYPE_TORCHWOOD,
+#define _PVZ_ENUM_MEMBER(X, N) X,
+    PVZ_ENUMERATE_PLANT_TYPES(_PVZ_ENUM_MEMBER)
+#undef _PVZ_ENUM_MEMBER
     PLANT_TYPE_MAX_COUNT,
 };
 
@@ -53,10 +59,16 @@ enum zombie_type : u16
 
 enum projectile_type : u16
 {
+#define PVZ_ENUMERATE_PROJECTILE_TYPES(X)   \
+    X(PROJECTILE_TYPE_SUN, Sun)             \
+    X(PROJECTILE_TYPE_PEA, Pea)             \
+    X(PROJECTILE_TYPE_FIRE_PEA, FirePea)    \
+    X(PROJECTILE_TYPE_MELON, Melon)
+
     PROJECTILE_TYPE_NONE = 0,
-    PROJECTILE_TYPE_PEA,
-    PROJECTILE_TYPE_FIRE_PEA,
-    PROJECTILE_TYPE_SUN,
+#define _PVZ_ENUM_MEMBER(X, N) X,
+    PVZ_ENUMERATE_PROJECTILE_TYPES(_PVZ_ENUM_MEMBER)
+#undef _PVZ_ENUM_MEMBER
     PROJECTILE_TYPE_MAX_COUNT,
 };
 
@@ -105,6 +117,17 @@ struct plant_entity_torchwood
     f32                                 DamageMultiplier;
 };
 
+struct plant_entity_melonpult
+{
+    f32                                 LaunchDelay;
+    f32                                 LaunchTimer;
+    f32                                 ProjectileDamage;
+    f32                                 ProjectileRadius;
+    f32                                 ProjectileVelocity;
+    f32                                 ProjectileSplashDamageRadius;
+    f32                                 ProjectileSplashDamageMultiplier;
+};
+
 struct plant_entity
 {
     // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
@@ -119,6 +142,7 @@ struct plant_entity
         plant_entity_peashooter         Peashooter;
         plant_entity_repeater           Repeater;
         plant_entity_torchwood          Torchwood;
+        plant_entity_melonpult          Melonpult;
     };
 };
 
@@ -167,6 +191,17 @@ struct projectile_entity_fire_pea
     f32                                 Damage;
 };
 
+struct projectile_entity_melon
+{
+    f32                                 Damage;
+    f32                                 SplashDamageRadius;
+    f32                                 SplashDamageMultiplier;
+    vec2                                StartPosition;
+    vec2                                TargetPosition;
+    f32                                 Velocity;
+    zombie_entity*                      TargetZombie;
+};
+
 struct projectile_entity
 {
     // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
@@ -182,6 +217,7 @@ struct projectile_entity
         projectile_entity_sun           Sun;
         projectile_entity_pea           Pea;
         projectile_entity_fire_pea      FirePea;
+        projectile_entity_melon         Melon;
     };
 };
 

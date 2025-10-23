@@ -224,36 +224,75 @@ GameGardenGrid_UpdatePlantSunflower(game_state* GameState, game_platform_state* 
 }
 
 internal inline b8
-GameGardenGrid_AreZombiesOnTheLane(game_garden_grid* GardenGrid, u32 CellIndexY)
+GameGardenGrid_AreZombiesOnTheLane(game_state* GameState, u32 CellIndexX, u32 CellIndexY)
 {
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    const f32 CellPositionX = GameGardenGrid_GetCellPositionX(GardenGrid, CellIndexX);
+
     b8 AreZombiesOnTheLane = false;
     for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
     {
         const zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
-        if (ZombieEntity->CellIndexY == CellIndexY)
+        const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
+
+        const f32 ZombiePositionX = ZombieEntity->Position.X - (0.5F * ZombieConfig->Dimensions.X);
+        if ((!ZombieEntity->IsPendingDestroy) &&
+            (ZombieEntity->CellIndexY == CellIndexY) &&
+            (ZombiePositionX >= CellPositionX))
         {
             AreZombiesOnTheLane = true;
             break;
         }
     }
+
     return AreZombiesOnTheLane;
 }
 
+internal inline zombie_entity*
+GameGardenGrid_GetFirstZombieOnTheLane(game_state* GameState, u32 CellIndexX, u32 CellIndexY)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    const f32 CellPositionX = GameGardenGrid_GetCellPositionX(GardenGrid, CellIndexX);
+
+    zombie_entity* ClosestZombieEntity = NULL;
+    f32 ClosestZombieEntityPositionX;
+
+    for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
+    {
+        zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
+        const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
+
+        const f32 ZombiePositionX = ZombieEntity->Position.X - (0.5F * ZombieConfig->Dimensions.X);
+        if ((!ZombieEntity->IsPendingDestroy) &&
+            (ZombieEntity->CellIndexY == CellIndexY) &&
+            (ZombiePositionX >= CellPositionX))
+        {
+            if (!ClosestZombieEntity || ZombiePositionX < ClosestZombieEntityPositionX)
+            {
+                ClosestZombieEntity = ZombieEntity;
+                ClosestZombieEntityPositionX = ZombiePositionX;
+            }
+        }
+    }
+
+    return ClosestZombieEntity;
+}
+
 internal inline b8
-GameGardenGrid_ShootPeaProjectile(game_garden_grid* GardenGrid, u32 CellIndexY, vec2 Position,
+GameGardenGrid_ShootPeaProjectile(game_state* GameState, u32 CellIndexX, u32 CellIndexY, vec2 Position,
                                   f32 Velocity, f32 Damage, f32 Radius, b8 ShootOnlyWhenThereAreZombiesOnTheLane)
 {
     b8 ShouldShoot = true;
     if (ShootOnlyWhenThereAreZombiesOnTheLane)
     {
         // NOTE(Traian): Only shoot when there are zombies on the plant's lane.
-        ShouldShoot = GameGardenGrid_AreZombiesOnTheLane(GardenGrid, CellIndexY);
+        ShouldShoot = GameGardenGrid_AreZombiesOnTheLane(GameState, CellIndexX, CellIndexY);
     }
 
     if (ShouldShoot)
     {
         // NOTE(Traian): Push a new pea projectile to the entity buffer.
-        projectile_entity* PeaProjectile = GameGardenGrid_PushProjectileEntity(GardenGrid,
+        projectile_entity* PeaProjectile = GameGardenGrid_PushProjectileEntity(&GameState->GardenGrid,
                                                                                PROJECTILE_TYPE_PEA,
                                                                                CellIndexY);
         PeaProjectile->Position = Position;
@@ -277,7 +316,7 @@ GameGardenGrid_UpdatePlantPeashooter(game_state* GameState, game_platform_state*
         const vec2 ShootOffset = Vec2(PLANT_PEASHOOTER_SHOOT_POINT_OFFSET_X, PLANT_PEASHOOTER_SHOOT_POINT_OFFSET_Y);
         const vec2 ProjectilePosition = CellPoint + ShootOffset;
 
-        if (GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
+        if (GameGardenGrid_ShootPeaProjectile(GameState, CellIndexX, CellIndexY, ProjectilePosition,
                                               Peashooter->ProjectileVelocity, Peashooter->ProjectileDamage,
                                               Peashooter->ProjectileRadius, true))
         {
@@ -306,7 +345,7 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
         if (Repeater->ShootTimer >= Repeater->ShootSequenceDelay)
         {
 
-            if (GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
+            if (GameGardenGrid_ShootPeaProjectile(GameState, CellIndexX, CellIndexY, ProjectilePosition,
                                                   Repeater->ProjectileVelocity, Repeater->ProjectileDamage,
                                                   Repeater->ProjectileRadius, true))
             {
@@ -323,7 +362,7 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
     {
         if (Repeater->ShootTimer >= Repeater->ShootSequenceDeltaDelay)
         {
-            GameGardenGrid_ShootPeaProjectile(GardenGrid, CellIndexY, ProjectilePosition,
+            GameGardenGrid_ShootPeaProjectile(GameState, CellIndexX, CellIndexY, ProjectilePosition,
                                               Repeater->ProjectileVelocity, Repeater->ProjectileDamage,
                                               Repeater->ProjectileRadius, false);
             Repeater->ShootTimer = 0.0F;
@@ -333,6 +372,53 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
         {
             Repeater->ShootTimer += DeltaTime;
         }
+    }
+}
+internal void
+GameGardenGrid_UpdatePlantTorchwood(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                    u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
+{
+}
+
+internal void
+GameGardenGrid_UpdatePlantMelonpult(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                    u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    plant_entity_melonpult* Melonpult = &PlantEntity->Melonpult;
+
+    zombie_entity* TargetZombie = GameGardenGrid_GetFirstZombieOnTheLane(GameState, CellIndexX, CellIndexY);
+    if (TargetZombie && !TargetZombie->IsPendingDestroy)
+    {
+        if (Melonpult->LaunchTimer >= Melonpult->LaunchDelay)
+        {
+            Melonpult->LaunchTimer = 0.0F;
+            projectile_entity* MelonProjectile = GameGardenGrid_PushProjectileEntity(GardenGrid,
+                                                                                     PROJECTILE_TYPE_MELON,
+                                                                                     CellIndexY);
+            const game_zombie_config* TargetZombieConfig = &GameState->Config.Zombies[TargetZombie->Type];
+
+            const vec2 LaunchOffset = Vec2(PLANT_MELONPULT_LAUNCH_POINT_OFFSET_X,
+                                           PLANT_MELONPULT_LAUNCH_POINT_OFFSET_Y);
+            MelonProjectile->Position = CellPoint + LaunchOffset;
+            MelonProjectile->Radius = Melonpult->ProjectileRadius;
+            MelonProjectile->Melon.Damage = Melonpult->ProjectileDamage;
+            MelonProjectile->Melon.SplashDamageRadius = Melonpult->ProjectileSplashDamageRadius;
+            MelonProjectile->Melon.SplashDamageMultiplier = Melonpult->ProjectileSplashDamageMultiplier;
+            MelonProjectile->Melon.StartPosition = CellPoint + LaunchOffset;
+            MelonProjectile->Melon.TargetPosition.X = TargetZombie->Position.X;
+            MelonProjectile->Melon.TargetPosition.Y = TargetZombie->Position.Y + 0.5F * TargetZombieConfig->Dimensions.Y;
+            MelonProjectile->Melon.Velocity = Melonpult->ProjectileVelocity;
+            MelonProjectile->Melon.TargetZombie = TargetZombie;
+        }
+        else
+        {
+            Melonpult->LaunchTimer += DeltaTime;
+        }
+    }
+    else
+    {
+        Melonpult->LaunchTimer += DeltaTime;
     }
 }
 
@@ -369,26 +455,16 @@ GameGardenGrid_UpdatePlants(game_state* GameState, game_platform_state* Platform
                 // NOTE(Traian): This switch doesn't have to be exhaustive. There are plants that have no update logic.
                 switch (PlantEntity->Type)
                 {
-                    case PLANT_TYPE_SUNFLOWER:
-                    {
-                        GameGardenGrid_UpdatePlantSunflower(GameState, PlatformState, DeltaTime,
-                                                            CellIndexX, CellIndexY, CellPoint, PlantEntity);
-                    }
+#define _PVZ_UPDATE_PLANT(PlantType, PlaneName)                                                                 \
+                    case PlantType:                                                                             \
+                    {                                                                                           \
+                        GameGardenGrid_UpdatePlant##PlaneName(GameState, PlatformState, DeltaTime,              \
+                                                              CellIndexX, CellIndexY, CellPoint, PlantEntity);  \
+                    }                                                                                           \
                     break;
 
-                    case PLANT_TYPE_PEASHOOTER:
-                    {
-                        GameGardenGrid_UpdatePlantPeashooter(GameState, PlatformState, DeltaTime,
-                                                             CellIndexX, CellIndexY, CellPoint, PlantEntity);
-                    }
-                    break;
-
-                    case PLANT_TYPE_REPEATER:
-                    {
-                        GameGardenGrid_UpdatePlantRepeater(GameState, PlatformState, DeltaTime,
-                                                                   CellIndexX, CellIndexY, CellPoint, PlantEntity);
-                    }
-                    break;
+                    PVZ_ENUMERATE_PLANT_TYPES(_PVZ_UPDATE_PLANT)
+#undef _PVZ_UPDATE_PLANT
                 }
             }
         }
@@ -657,6 +733,86 @@ GameGardenGrid_UpdateProjectileFirePea(game_state* GameState, game_platform_stat
 }
 
 internal void
+GameGardenGrid_UpdateProjectileMelon(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                     projectile_entity* ProjectileEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    projectile_entity_melon* Melon = &ProjectileEntity->Melon;
+
+    if (Melon->TargetZombie && Melon->TargetZombie->IsPendingDestroy)
+    {
+        Melon->TargetZombie = NULL;
+    }
+
+    if (Melon->TargetZombie)
+    {
+        // NOTE(Traian): Update the target position.
+        const game_zombie_config* TargetZombieConfig = &GameState->Config.Zombies[Melon->TargetZombie->Type];
+        Melon->TargetPosition.X = Melon->TargetZombie->Position.X;
+        Melon->TargetPosition.Y = Melon->TargetZombie->Position.Y + 0.5F * TargetZombieConfig->Dimensions.Y;
+    }
+
+    const f32 X1 = Melon->StartPosition.X;
+    const f32 Y1 = Melon->StartPosition.Y;
+    const f32 X2 = Melon->TargetPosition.X;
+    const f32 Y2 = Melon->TargetPosition.Y;
+
+    // NOTE(Traian): The equation of a parabola that contains the points (X1, Y1) and (X2, Y2),
+    // and has a height coefficient of 'A'.
+    const f32 A = -0.4F;
+    const f32 B = (Y1 - Y2) / (X1 - X2) - A * (X1 + X2);
+    const f32 C = A * X1 * X2 + (X1 * Y2 - X2 * Y1) / (X1 - X2);
+
+    const f32 X = ProjectileEntity->Position.X + Melon->Velocity * DeltaTime;
+    const f32 Y = A * (X * X) + B * X + C;
+
+    ProjectileEntity->Position.X = X;
+    ProjectileEntity->Position.Y = Y;
+
+    if (ProjectileEntity->Position.X >= Melon->TargetPosition.X)
+    {
+        zombie_entity* ClosestZombieEntity = NULL;
+        f32 ClosestZombieDistance;
+
+        for (u32 ZombieIndex = 0; ZombieIndex < GardenGrid->CurrentZombieCount; ++ZombieIndex)
+        {
+            zombie_entity* ZombieEntity = GardenGrid->ZombieEntities + ZombieIndex;
+            if (!ZombieEntity->IsPendingDestroy)
+            {
+                const f32 Distance = Abs(ZombieEntity->Position.X - ProjectileEntity->Position.X);
+                if (Distance <= Melon->SplashDamageRadius)
+                {
+                    if (!ClosestZombieEntity || ClosestZombieDistance > Distance)
+                    {
+                        ClosestZombieEntity = ClosestZombieEntity;
+                        ClosestZombieDistance = Distance; 
+                    }
+
+                    if (ZombieEntity != Melon->TargetZombie)
+                    {
+                        // NOTE(Traian): Apply splash damage.
+                        ZombieEntity->Health -= Melon->SplashDamageMultiplier * Melon->Damage;
+                    }
+                }
+            }
+        }
+
+        if (Melon->TargetZombie)
+        {
+            // NOTE(Traian): No splash damage was previously applied.
+            Melon->TargetZombie->Health -= Melon->Damage;       
+        }
+        else if (ClosestZombieEntity)
+        {
+            // NOTE(Traian): Account for the splash damage applied before.
+            ClosestZombieEntity->Health -= Melon->Damage * (1.0F - Melon->SplashDamageMultiplier);
+        }
+
+        ProjectileEntity->IsPendingDestroy = true;
+    }
+}
+
+internal void
 GameGardenGrid_UpdateProjectiles(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime)
 {
     game_garden_grid* GardenGrid = &GameState->GardenGrid;
@@ -689,23 +845,15 @@ GameGardenGrid_UpdateProjectiles(game_state* GameState, game_platform_state* Pla
             // exist a projectile type that has no logic attached to it.
             switch(ProjectileEntity->Type)
             {
-                case PROJECTILE_TYPE_SUN:
-                {
-                    GameGardenGrid_UpdateProjectileSun(GameState, PlatformState, DeltaTime, ProjectileEntity);   
-                }
+#define _PVZ_UPDATE_PROJECTILE(ProjectileType, ProjectileName)                                                              \
+                case ProjectileType:                                                                                        \
+                {                                                                                                           \
+                    GameGardenGrid_UpdateProjectile##ProjectileName(GameState, PlatformState, DeltaTime, ProjectileEntity); \
+                }                                                                                                           \
                 break;
 
-                case PROJECTILE_TYPE_PEA:
-                {
-                    GameGardenGrid_UpdateProjectilePea(GameState, PlatformState, DeltaTime, ProjectileEntity);
-                }
-                break;
-
-                case PROJECTILE_TYPE_FIRE_PEA:
-                {
-                    GameGardenGrid_UpdateProjectileFirePea(GameState, PlatformState, DeltaTime, ProjectileEntity);
-                }
-                break;
+                PVZ_ENUMERATE_PROJECTILE_TYPES(_PVZ_UPDATE_PROJECTILE);
+#undef _PVZ_UPDATE_PROJECTILE
             }
         }
     }
@@ -720,8 +868,8 @@ GameGardenGrid_Update(game_state* GameState, game_platform_state* PlatformState,
     // NOTE(Traian): Calculate the garden grid position and dimensions.
     //
     
-    const vec2 GARDEN_MIN_POINT_PERCENTAGE = Vec2(0.01F, 0.01F);
-    const vec2 GARDEN_MAX_POINT_PERCENTAGE = Vec2(0.99F, 0.80F);
+    const vec2 GARDEN_MIN_POINT_PERCENTAGE = Vec2(0.05F, 0.01F);
+    const vec2 GARDEN_MAX_POINT_PERCENTAGE = Vec2(0.95F, 0.80F);
     GardenGrid->MinPoint.X = GameState->Camera.UnitCountX * GARDEN_MIN_POINT_PERCENTAGE.X;
     GardenGrid->MinPoint.Y = GameState->Camera.UnitCountY * GARDEN_MIN_POINT_PERCENTAGE.Y;
     GardenGrid->MaxPoint.X = GameState->Camera.UnitCountX * GARDEN_MAX_POINT_PERCENTAGE.X;

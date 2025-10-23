@@ -162,6 +162,18 @@ GamePLantSelector_PlantSeedPacket(game_state* GameState, vec2 GameMousePosition)
                     PlantEntity->Torchwood.DamageMultiplier = PLANT_TORCHWOOD_DAMAGE_MULTIPLIER;
                 }
                 break;
+
+                case PLANT_TYPE_MELONPULT:
+                {
+                    // NOTE(Traian): "Plant" a melonpult.
+                    PlantEntity->Melonpult.LaunchDelay = PLANT_MELONPULT_LAUNCH_DELAY;
+                    PlantEntity->Melonpult.ProjectileDamage = PLANT_MELONPULT_PROJECTILE_DAMAGE;
+                    PlantEntity->Melonpult.ProjectileRadius = PLANT_MELONPULT_PROJECTILE_RADIUS;
+                    PlantEntity->Melonpult.ProjectileVelocity = PLANT_MELONPULT_PROJECTILE_VELOCITY;
+                    PlantEntity->Melonpult.ProjectileSplashDamageRadius = PLANT_MELONPULT_PROJECTILE_SPLASH_DAMAGE_RADIUS;
+                    PlantEntity->Melonpult.ProjectileSplashDamageMultiplier = PLANT_MELONPULT_PROJECTILE_SPLASH_DAMAGE_MULTIPLIER;
+                }
+                break;
             }
 
             if (SeedPacket->PlantType != PLANT_TYPE_NONE && SeedPacket->CooldownDelay > 0.0F)
@@ -432,59 +444,28 @@ GamePlantSelector_RenderPlantPreview(game_state* GameState, vec2 GameMousePositi
     ASSERT(PlantSelector->SelectedSeedPacketIndex < PlantSelector->SeedPacketCount);
     game_seed_packet* SeedPacket = PlantSelector->SeedPackets + PlantSelector->SelectedSeedPacketIndex;
 
-    vec2 PreviewMinPoint = {};
-    vec2 PreviewMaxPoint = {};
-    asset* PreviewTextureAsset = NULL;
-
-    switch (SeedPacket->PlantType)
+    if (SeedPacket->PlantType != PLANT_TYPE_NONE && SeedPacket->PlantType < PLANT_TYPE_MAX_COUNT)
     {
-        case PLANT_TYPE_SUNFLOWER:
-        {
-            const vec2 Dimensions = Vec2(PLANT_SUNFLOWER_DIMENSIONS_X, PLANT_SUNFLOWER_DIMENSIONS_Y);
-            const vec2 RenderOffset = Vec2(PLANT_SUNFLOWER_RENDER_OFFSET_X, PLANT_SUNFLOWER_RENDER_OFFSET_Y);
-            PreviewMinPoint = PlantSelector->PlantPreviewCenterPosition - (0.5F * Dimensions) + RenderOffset;
-            PreviewMaxPoint = PlantSelector->PlantPreviewCenterPosition + (0.5F * Dimensions) + RenderOffset;
-            PreviewTextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_SUNFLOWER);
-        }
-        break;
+        const game_plant_config* PlantConfig = &GameState->Config.Plants[SeedPacket->PlantType];
+        const vec2 Dimensions = PlantConfig->Dimensions;
+        const vec2 RenderOffset = PlantConfig->RenderOffset;
+        const vec2 RenderScale = PlantConfig->RenderScale;
+        const vec2 RenderDimensions = Vec2(Dimensions.X * RenderScale.X, Dimensions.Y * RenderScale.Y);
 
-        case PLANT_TYPE_PEASHOOTER:
+        const vec2 PreviewMinPoint = PlantSelector->PlantPreviewCenterPosition - 0.5F * RenderDimensions + RenderOffset;
+        const vec2 PreviewMaxPoint = PreviewMinPoint + RenderDimensions;
+        
+        asset* PreviewTextureAsset = Asset_Get(&GameState->Assets, PlantConfig->AssetID);
+        if (PreviewTextureAsset)
         {
-            const vec2 Dimensions = Vec2(PLANT_PEASHOOTER_DIMENSIONS_X, PLANT_PEASHOOTER_DIMENSIONS_Y);
-            const vec2 RenderOffset = Vec2(PLANT_PEASHOOTER_RENDER_OFFSET_X, PLANT_PEASHOOTER_RENDER_OFFSET_Y);
-            PreviewMinPoint = PlantSelector->PlantPreviewCenterPosition - (0.5F * Dimensions) + RenderOffset;
-            PreviewMaxPoint = PlantSelector->PlantPreviewCenterPosition + (0.5F * Dimensions) + RenderOffset;
-            PreviewTextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_PEASHOOTER);
+            Renderer_PushPrimitive(&GameState->Renderer,
+                                   Game_TransformGamePointToNDC(&GameState->Camera, PreviewMinPoint),
+                                   Game_TransformGamePointToNDC(&GameState->Camera, PreviewMaxPoint),
+                                   PLANT_SELECTOR_PLANT_PREVIEW_OFFSET_Z, Color4(1.0F, 1.0F, 1.0F, 0.7F),
+                                   Vec2(0.0F), Vec2(1.0F),
+                                   &PreviewTextureAsset->Texture.RendererTexture);
         }
-        break;
-
-        case PLANT_TYPE_REPEATER:
-        {
-            const vec2 Dimensions = Vec2(PLANT_REPEATER_DIMENSIONS_X, PLANT_REPEATER_DIMENSIONS_Y);
-            const vec2 RenderOffset = Vec2(PLANT_REPEATER_RENDER_OFFSET_X, PLANT_REPEATER_RENDER_OFFSET_Y);
-            PreviewMinPoint = PlantSelector->PlantPreviewCenterPosition - (0.5F * Dimensions) + RenderOffset;
-            PreviewMaxPoint = PlantSelector->PlantPreviewCenterPosition + (0.5F * Dimensions) + RenderOffset;
-            PreviewTextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_REPEATER);
-        }
-        break;
-
-        case PLANT_TYPE_TORCHWOOD:
-        {
-            const vec2 Dimensions = Vec2(PLANT_TORCHWOOD_DIMENSIONS_X, PLANT_TORCHWOOD_DIMENSIONS_Y);
-            const vec2 RenderOffset = Vec2(PLANT_TORCHWOOD_RENDER_OFFSET_X, PLANT_TORCHWOOD_RENDER_OFFSET_Y);
-            PreviewMinPoint = PlantSelector->PlantPreviewCenterPosition - (0.5F * Dimensions) + RenderOffset;
-            PreviewMaxPoint = PlantSelector->PlantPreviewCenterPosition + (0.5F * Dimensions) + RenderOffset;
-            PreviewTextureAsset = Asset_Get(&GameState->Assets, GAME_ASSET_ID_PLANT_TORCHWOOD);
-        }
-        break;
     }
-
-    Renderer_PushPrimitive(&GameState->Renderer,
-                           Game_TransformGamePointToNDC(&GameState->Camera, PreviewMinPoint),
-                           Game_TransformGamePointToNDC(&GameState->Camera, PreviewMaxPoint),
-                           PLANT_SELECTOR_PLANT_PREVIEW_OFFSET_Z, Color4(1.0F, 1.0F, 1.0F, 0.7F),
-                           Vec2(0.0F), Vec2(1.0F),
-                           &PreviewTextureAsset->Texture.RendererTexture);
 }
 
 internal void
