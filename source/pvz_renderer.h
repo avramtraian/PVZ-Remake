@@ -109,4 +109,5 @@ function void   Renderer_PushPrimitive      (renderer* Renderer, vec2 MinPoint, 
                                              color4 Color, vec2 MinUV = {}, vec2 MaxUV = {},
                                              const renderer_texture* Texture = NULL);
 
-function void   Renderer_DispatchClusters   (renderer* Renderer, renderer_image* RenderTarget);
+function void   Renderer_DispatchClusters   (renderer* Renderer, renderer_image* RenderTarget,
+                                             platform_task_queue* TaskQueue);

@@ -137,9 +137,9 @@ Win32_PlatformTaskQueue_Initialize(platform_task_queue* TaskQueue, memory_arena*
     GetSystemInfo(&SystemInfo);
     const u32 HardwareThreadCount = SystemInfo.dwNumberOfProcessors;
 
-    const u32 MAX_THREAD_COUNT = 8;
+    const f32 MAX_SYSTEM_USAGE_PERCENTAGE = 0.8F;
     // NOTE(Traian): One thread is the main thread, which should not be included the the thread pool of the task queue.
-    TaskQueue->ThreadCount = Min(HardwareThreadCount, MAX_THREAD_COUNT) - 1;
+    TaskQueue->ThreadCount = Max(1, (u32)(HardwareThreadCount * MAX_SYSTEM_USAGE_PERCENTAGE));
     TaskQueue->Threads = PUSH_ARRAY(Arena, win32_task_thread_info, TaskQueue->ThreadCount);
     for (u32 ThreadIndex = 0; ThreadIndex < TaskQueue->ThreadCount; ++ThreadIndex)
     {

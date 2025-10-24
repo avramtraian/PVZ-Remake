@@ -289,7 +289,7 @@ function void
 Renderer_Initialize(renderer* Renderer, memory_arena* Arena)
 {
     ZERO_STRUCT_POINTER(Renderer);
-    Renderer->ClusterCount = 8;
+    Renderer->ClusterCount = 12;
     Renderer->MaxPrimitiveCount = 1024;
     Renderer->MaxTextureSlotCount = 64;
 
@@ -877,14 +877,39 @@ Renderer_ExecuteCluster(renderer* Renderer, renderer_image* RenderTarget, u32 Cl
     }
 }
 
+struct renderer_cluster_task_info
+{
+    renderer*       Renderer;
+    renderer_image* RenderTarget;
+    u32             ClusterIndex;
+};
+
+internal void
+Renderer_RunClusterTask(s32 LogicalThreadIndex, void* OpaqueTaskInfo)
+{
+    const renderer_cluster_task_info* TaskInfo = (const renderer_cluster_task_info*)OpaqueTaskInfo;
+    Renderer_ExecuteCluster(TaskInfo->Renderer, TaskInfo->RenderTarget, TaskInfo->ClusterIndex);
+}
+
 function void
-Renderer_DispatchClusters(renderer* Renderer, renderer_image* RenderTarget)
+Renderer_DispatchClusters(renderer* Renderer, renderer_image* RenderTarget, platform_task_queue* TaskQueue)
 {
     ASSERT(RenderTarget->SizeX == Renderer->ViewportSizeX);
     ASSERT(RenderTarget->SizeY == Renderer->ViewportSizeY);
 
+    const u32 MAX_TASK_INFO_COUNT = 64;
+    renderer_cluster_task_info TaskInfos[MAX_TASK_INFO_COUNT] = {};
+    u32 CurrentTaskInfoIndex = 0;
+
     for (u32 ClusterIndex = 0; ClusterIndex < Renderer->ClusterCount; ++ClusterIndex)
     {
-        Renderer_ExecuteCluster(Renderer, RenderTarget, ClusterIndex);
+        renderer_cluster_task_info* TaskInfo = &TaskInfos[CurrentTaskInfoIndex++];
+        TaskInfo->Renderer = Renderer;
+        TaskInfo->RenderTarget = RenderTarget;
+        TaskInfo->ClusterIndex = ClusterIndex;
+
+        PlatformTaskQueue_Push(TaskQueue, Renderer_RunClusterTask, TaskInfo);
     }
+
+    PlatformTaskQueue_WaitForAll(TaskQueue);
 }

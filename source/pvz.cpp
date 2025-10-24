@@ -703,5 +703,5 @@ Game_UpdateAndRender(game_state* GameState, game_platform_state* PlatformState, 
     GameShovel_Render(GameState, PlatformState);
 
     Renderer_EndFrame(&GameState->Renderer);
-    Renderer_DispatchClusters(&GameState->Renderer, PlatformState->RenderTarget);
+    Renderer_DispatchClusters(&GameState->Renderer, PlatformState->RenderTarget, PlatformState->TaskQueue);
 }
