@@ -26,7 +26,8 @@ enum plant_type : u16
     X(PLANT_TYPE_PEASHOOTER, Peashooter)    \
     X(PLANT_TYPE_REPEATER, Repeater)        \
     X(PLANT_TYPE_TORCHWOOD, Torchwood)      \
-    X(PLANT_TYPE_MELONPULT, Melonpult)
+    X(PLANT_TYPE_MELONPULT, Melonpult)      \
+    X(PLANT_TYPE_WALLNUT, Wallnut)
 
     PLANT_TYPE_NONE = 0,
 #define _PVZ_ENUM_MEMBER(X, N) X,
@@ -128,6 +129,14 @@ struct plant_entity_melonpult
     f32                                 ProjectileSplashDamageMultiplier;
 };
 
+struct plant_entity_wallnut
+{
+    f32                                 MaxHealth;
+    f32                                 CrackStage1HealthPercentage;
+    f32                                 CrackStage2HealthPercentage;
+    u8                                  CrackIndex;
+};
+
 struct plant_entity
 {
     // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
@@ -143,10 +152,9 @@ struct plant_entity
         plant_entity_repeater           Repeater;
         plant_entity_torchwood          Torchwood;
         plant_entity_melonpult          Melonpult;
+        plant_entity_wallnut            Wallnut;
     };
 };
-
-
 
 struct zombie_entity_normal
 {
@@ -324,6 +332,7 @@ struct game_plant_config
     vec2                                RenderScale;
     vec2                                RenderOffset;
     game_asset_id                       AssetID;
+    b8                                  UseCustomRenderProcedure;
 };
 
 struct game_zombie_config

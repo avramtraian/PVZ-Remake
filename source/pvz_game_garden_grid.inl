@@ -374,6 +374,7 @@ GameGardenGrid_UpdatePlantRepeater(game_state* GameState, game_platform_state* P
         }
     }
 }
+
 internal void
 GameGardenGrid_UpdatePlantTorchwood(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
                                     u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
@@ -419,6 +420,31 @@ GameGardenGrid_UpdatePlantMelonpult(game_state* GameState, game_platform_state* 
     else
     {
         Melonpult->LaunchTimer += DeltaTime;
+    }
+}
+
+internal void
+GameGardenGrid_UpdatePlantWallnut(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                  u32 CellIndexX, u32 CellIndexY, vec2 CellPoint, plant_entity* PlantEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    plant_entity_wallnut* Wallnut = &PlantEntity->Wallnut;
+
+    const f32 CurrentHealthPercentage = PlantEntity->Health / Wallnut->MaxHealth;
+    if (CurrentHealthPercentage <= Wallnut->CrackStage2HealthPercentage)
+    {
+        // NOTE(Traian): Cracked in stage 2.
+        Wallnut->CrackIndex = 2;
+    }
+    else if (CurrentHealthPercentage <= Wallnut->CrackStage1HealthPercentage)
+    {
+        // NOTE(Traian): Cracked in stage 1.
+        Wallnut->CrackIndex = 1;
+    }
+    else
+    {
+        // NOTE(Traian): No cracks.
+        Wallnut->CrackIndex = 0;
     }
 }
 
@@ -975,17 +1001,47 @@ GameGardenGrid_RenderPlants(game_state* GameState, game_platform_state* Platform
                 const vec2 RenderScale = PlantConfig->RenderScale;
                 const vec2 RenderOffset = PlantConfig->RenderOffset;
                 const vec2 RenderDimensions = Vec2(Dimensions.X * RenderScale.X, Dimensions.Y * RenderScale.Y);
-
                 const vec2 MinPoint = CellPoint - (0.5F * RenderDimensions) + RenderOffset;
                 const vec2 MaxPoint = MinPoint + RenderDimensions;
-                asset* TextureAsset = Asset_Get(&GameState->Assets, PlantConfig->AssetID);
-                if (TextureAsset)
+
+                if (!PlantConfig->UseCustomRenderProcedure)
                 {
-                    Renderer_PushPrimitive(&GameState->Renderer,
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                           RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
-                                           &TextureAsset->Texture.RendererTexture);
+                    asset* TextureAsset = Asset_Get(&GameState->Assets, PlantConfig->AssetID);
+                    if (TextureAsset)
+                    {
+                        Renderer_PushPrimitive(&GameState->Renderer,
+                                               Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
+                                               Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
+                                               RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
+                                               &TextureAsset->Texture.RendererTexture);
+                    }
+                }
+
+                // NOTE(Traian): Render the plants that have the 'UseCustomRenderProcedure' configuration flag set to true.
+                switch (PlantEntity->Type)
+                {
+                    case PLANT_TYPE_WALLNUT:
+                    {
+                        const plant_entity_wallnut* Wallnut = &PlantEntity->Wallnut;
+                        game_asset_id TextureAssedID = GAME_ASSET_ID_NONE;
+                        switch (Wallnut->CrackIndex)
+                        {
+                            case 0: { TextureAssedID = GAME_ASSET_ID_PLANT_WALLNUT_NORMAL; }    break;
+                            case 1: { TextureAssedID = GAME_ASSET_ID_PLANT_WALLNUT_CRACKED_1; } break;
+                            case 2: { TextureAssedID = GAME_ASSET_ID_PLANT_WALLNUT_CRACKED_2; } break;
+                        }
+
+                        asset* TextureAsset = Asset_Get(&GameState->Assets, TextureAssedID);
+                        if (TextureAsset)
+                        {
+                            Renderer_PushPrimitive(&GameState->Renderer,
+                                                   Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
+                                                   Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
+                                                   RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
+                                                   &TextureAsset->Texture.RendererTexture);   
+                        }
+                    }
+                    break;
                 }
             }
         }

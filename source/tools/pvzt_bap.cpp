@@ -324,7 +324,7 @@ BAP_GenerateAssetPack(bap_asset_pack* AssetPack, const char* AssetRootDirectoryP
 {
     ZERO_STRUCT_POINTER(AssetPack);
 
-    AssetPack->TextureCount = 12;
+    AssetPack->TextureCount = 15;
     AssetPack->Textures = (bap_asset_texture*)malloc(AssetPack->TextureCount * sizeof(bap_asset_texture));
     ZERO_STRUCT_ARRAY(AssetPack->Textures, AssetPack->TextureCount);
     u32 CurrentTextureIndex = 0;
@@ -343,6 +343,9 @@ BAP_GenerateAssetPack(bap_asset_pack* AssetPack, const char* AssetRootDirectoryP
     BAP_ADD_TEXTURE("plant_repeater.png", GAME_ASSET_ID_PLANT_REPEATER);
     BAP_ADD_TEXTURE("plant_torchwood.png", GAME_ASSET_ID_PLANT_TORCHWOOD);
     BAP_ADD_TEXTURE("plant_melonpult.png", GAME_ASSET_ID_PLANT_MELONPULT);
+    BAP_ADD_TEXTURE("plant_wallnut_normal.png", GAME_ASSET_ID_PLANT_WALLNUT_NORMAL);
+    BAP_ADD_TEXTURE("plant_wallnut_cracked_1.png", GAME_ASSET_ID_PLANT_WALLNUT_CRACKED_1);
+    BAP_ADD_TEXTURE("plant_wallnut_cracked_2.png", GAME_ASSET_ID_PLANT_WALLNUT_CRACKED_2);
     BAP_ADD_TEXTURE("projectile_sun.png", GAME_ASSET_ID_PROJECTILE_SUN);
     BAP_ADD_TEXTURE("projectile_pea.png", GAME_ASSET_ID_PROJECTILE_PEA);
     BAP_ADD_TEXTURE("projectile_fire_pea.png", GAME_ASSET_ID_PROJECTILE_FIRE_PEA);

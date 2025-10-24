@@ -174,6 +174,15 @@ GamePLantSelector_PlantSeedPacket(game_state* GameState, vec2 GameMousePosition)
                     PlantEntity->Melonpult.ProjectileSplashDamageMultiplier = PLANT_MELONPULT_PROJECTILE_SPLASH_DAMAGE_MULTIPLIER;
                 }
                 break;
+
+                case PLANT_TYPE_WALLNUT:
+                {
+                    // NOTE(Traian): "Plant" a wallnut.
+                    PlantEntity->Wallnut.MaxHealth = PLANT_WALLNUT_HEALTH;
+                    PlantEntity->Wallnut.CrackStage1HealthPercentage = PLANT_WALLNUT_CRACK_STAGE_1_HEALTH_PERCENTAGE;
+                    PlantEntity->Wallnut.CrackStage2HealthPercentage = PLANT_WALLNUT_CRACK_STAGE_2_HEALTH_PERCENTAGE;
+                }
+                break;
             }
 
             if (SeedPacket->PlantType != PLANT_TYPE_NONE && SeedPacket->CooldownDelay > 0.0F)
