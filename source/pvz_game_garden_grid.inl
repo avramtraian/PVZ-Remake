@@ -521,6 +521,17 @@ GameGardenGrid_SpawnZombie(game_state* GameState, zombie_type ZombieType, u32 Ce
                 ZombieEntity->Normal.AttackDelay = ZOMBIE_NORMAL_ATTACK_DELAY;
             }
             break;
+
+            case ZOMBIE_TYPE_BUCKETHEAD:
+            {
+                ZombieEntity->Buckethead.Velocity = -ZOMBIE_BUCKETHEAD_VELOCITY;
+                ZombieEntity->Buckethead.AttackDamage = ZOMBIE_BUCKETHEAD_ATTACK_DAMAGE;
+                ZombieEntity->Buckethead.AttackDelay = ZOMBIE_BUCKETHEAD_ATTACK_DELAY;
+                ZombieEntity->Buckethead.MaxHealth = ZombieEntity->Health;
+                ZombieEntity->Buckethead.DamagedStage1HealthPercentage = ZOMBIE_BUCKETHEAD_DAMAGED_STAGE_1_HEALTH_PERCENTAGE;
+                ZombieEntity->Buckethead.DamagedStage2HealthPercentage = ZOMBIE_BUCKETHEAD_DAMAGED_STAGE_2_HEALTH_PERCENTAGE;
+                ZombieEntity->Buckethead.DamagedStage3HealthPercentage = ZOMBIE_BUCKETHEAD_DAMAGED_STAGE_3_HEALTH_PERCENTAGE;
+            }
         }
 
         return ZombieEntity;
@@ -531,15 +542,16 @@ GameGardenGrid_SpawnZombie(game_state* GameState, zombie_type ZombieType, u32 Ce
     }
 }
 
-internal void
-GameGardenGrid_UpdateZombieNormal(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
-                                  zombie_entity* ZombieEntity)
+internal b8
+GameGardenGrid_ExcuteZombieBiteAttack(game_state* GameState, f32 DeltaTime, zombie_entity* ZombieEntity,
+                                      f32* InOutAttackTimer, f32 AttackDelay, f32 AttackDamage)
 {
     game_garden_grid* GardenGrid = &GameState->GardenGrid;
     const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
 
-    const f32 ZombieFrontPositionX = ZombieEntity->Position.X - (0.5F * ZombieConfig->Dimensions.X);
-    const s32 AttackedCellIndexX = GameGardenGrid_GetCellIndexX(GardenGrid, ZombieFrontPositionX);
+    const f32 AttackPositionX = ZombieEntity->Position.X;
+    const s32 AttackedCellIndexX = GameGardenGrid_GetCellIndexX(GardenGrid, AttackPositionX);
+
     plant_entity* AttackedPlantEntity = NULL;
     if (0 <= AttackedCellIndexX && AttackedCellIndexX < GardenGrid->CellCountX)
     {
@@ -547,28 +559,106 @@ GameGardenGrid_UpdateZombieNormal(game_state* GameState, game_platform_state* Pl
         plant_entity* PlantEntity = GardenGrid->PlantEntities + PlantIndex;
         if (PlantEntity->Type != PLANT_TYPE_NONE)
         {
-            AttackedPlantEntity = PlantEntity;
+            const game_plant_config* PlantConfig = &GameState->Config.Plants[PlantEntity->Type];
+
+            const f32 PlantPositionX = GameGardenGrid_GetCellPositionX(GardenGrid, AttackedCellIndexX);
+            const f32 PlantMinPointX = PlantPositionX - (0.5F * PlantConfig->Dimensions.X);
+            const f32 PlantMaxPointX = PlantPositionX + (0.5F * PlantConfig->Dimensions.X);
+
+            if (PlantMinPointX <= AttackPositionX && AttackPositionX <= PlantMaxPointX)
+            {
+                AttackedPlantEntity = PlantEntity;
+            }
         }
     }
 
-    zombie_entity_normal* Normal = &ZombieEntity->Normal;
+    b8 HasAttackTarget;
     if (AttackedPlantEntity)
     {
-        if (Normal->AttackTimer >= Normal->AttackDelay)
+        HasAttackTarget = true;
+        if (*InOutAttackTimer >= AttackDelay)
         {
-            Normal->AttackTimer = 0.0F;
-            AttackedPlantEntity->Health -= Normal->AttackDamage;
+            *InOutAttackTimer = 0.0F;
+            AttackedPlantEntity->Health -= AttackDamage;
         }
         else
         {
-            Normal->AttackTimer += DeltaTime;
+            *InOutAttackTimer += DeltaTime;
         }
     }
     else
     {
-        // NOTE(Traian): The zombie can't attack any plant - continue walking.
+        HasAttackTarget = false;
+        *InOutAttackTimer = 0.0F;
+    }
+
+    return HasAttackTarget;
+}
+
+internal void
+GameGardenGrid_UpdateZombieNormal(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                  zombie_entity* ZombieEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
+    zombie_entity_normal* Normal = &ZombieEntity->Normal;
+
+    if (ZombieEntity->Health <= 0.0F)
+    {
+        // NOTE(Traian): The zombie has died and we should not run its update procedure any more.
+        ZombieEntity->IsPendingDestroy = true;
+        return;
+    }
+
+    if (!GameGardenGrid_ExcuteZombieBiteAttack(GameState, DeltaTime, ZombieEntity,
+                                               &Normal->AttackTimer, Normal->AttackDelay, Normal->AttackDamage))
+    {
+        // NOTE(Traian): The zombie has to attack target, so move forward.
         ZombieEntity->Position.X += Normal->Velocity * DeltaTime;
-        Normal->AttackTimer = 0.0F;
+    }
+}
+
+internal void
+GameGardenGrid_UpdateZombieBuckethead(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime,
+                                      zombie_entity* ZombieEntity)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
+    zombie_entity_buckethead* Buckethead = &ZombieEntity->Buckethead;
+
+    if (ZombieEntity->Health <= 0.0F)
+    {
+        ZombieEntity->IsPendingDestroy = true;
+        return;
+    }
+
+    if (!GameGardenGrid_ExcuteZombieBiteAttack(GameState, DeltaTime, ZombieEntity,
+                                               &Buckethead->AttackTimer, Buckethead->AttackDelay, Buckethead->AttackDamage))
+    {
+        // NOTE(Traian): The zombie has to attack target, so move forward.
+        ZombieEntity->Position.X += Buckethead->Velocity * DeltaTime;
+    }
+
+    const f32 CurrentHealthPercentage = ZombieEntity->Health / Buckethead->MaxHealth;
+    if (CurrentHealthPercentage <= Buckethead->DamagedStage3HealthPercentage)
+    {
+        // NOTE(Traian): Damaged stage 3.
+        Buckethead->DamagedStageIndex = 3;
+    }
+    else if (CurrentHealthPercentage <= Buckethead->DamagedStage2HealthPercentage)
+    {
+        // NOTE(Traian): Damaged stage 2.
+        Buckethead->DamagedStageIndex = 2;
+    }
+    else if (CurrentHealthPercentage <= Buckethead->DamagedStage1HealthPercentage)
+    {
+        // NOTE(Traian): Damaged stage 1.
+        Buckethead->DamagedStageIndex = 1;
+    }
+    else
+    {
+        // NOTE(Traian): Damaged stage 0 (undamaged).
+        Buckethead->DamagedStageIndex = 0;
     }
 }
 
@@ -591,7 +681,12 @@ GameGardenGrid_UpdateZombies(game_state* GameState, game_platform_state* Platfor
         {
             const f32 SpawnPositionX = GameState->Camera.UnitCountX + 0.5F;
             const u32 SpawnCellIndexY = Random_RangeU32(&GardenGrid->RandomSeries, 0, GardenGrid->CellCountY - 1);
-            GameGardenGrid_SpawnZombie(GameState, ZOMBIE_TYPE_NORMAL, SpawnCellIndexY, SpawnPositionX);
+            // const u32 ZombieType = Random_RangeU32(&GardenGrid->RandomSeries,
+            //                                        ZOMBIE_TYPE_NONE + 1,
+            //                                        ZOMBIE_TYPE_MAX_COUNT - 1);
+            const u32 ZombieType = ZOMBIE_TYPE_BUCKETHEAD;
+
+            GameGardenGrid_SpawnZombie(GameState, (zombie_type)ZombieType, SpawnCellIndexY, SpawnPositionX);
         }
     }
     else
@@ -610,13 +705,6 @@ GameGardenGrid_UpdateZombies(game_state* GameState, game_platform_state* Platfor
         {
             const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieEntity->Type];
             
-            if (ZombieEntity->Health <= 0.0F)
-            {
-                // NOTE(Traian): The zombie has died and we should not run its update procedure any more.
-                ZombieEntity->IsPendingDestroy = true;
-                continue;
-            }
-
             if (ZombieEntity->Position.X <= -0.2F)
             {
                 // TODO(Traian): Open the game-ended screen.
@@ -628,11 +716,15 @@ GameGardenGrid_UpdateZombies(game_state* GameState, game_platform_state* Platfor
             // zombie type that does *nothing* (the default behaviour doesn't provide any kind of movement or attack logic).
             switch (ZombieEntity->Type)
             {
-                case ZOMBIE_TYPE_NORMAL:
-                {
-                    GameGardenGrid_UpdateZombieNormal(GameState, PlatformState, DeltaTime, ZombieEntity);
-                }
+#define _PVZ_UPDATE_ZOMBIE(ZombieType, ZombieName)                                                              \
+                case ZombieType:                                                                                \
+                {                                                                                               \
+                    GameGardenGrid_UpdateZombie##ZombieName(GameState, PlatformState, DeltaTime, ZombieEntity); \
+                }                                                                                               \
                 break;
+
+                PVZ_ENUMERATE_ZOMBIE_TYPES(_PVZ_UPDATE_ZOMBIE)
+#undef _PVZ_UPDATE_ZOMBIE
             }
         }
     }
@@ -785,7 +877,7 @@ GameGardenGrid_UpdateProjectileMelon(game_state* GameState, game_platform_state*
 
     // NOTE(Traian): The equation of a parabola that contains the points (X1, Y1) and (X2, Y2),
     // and has a height coefficient of 'A'.
-    const f32 A = -0.4F;
+    const f32 A = -0.2F;
     const f32 B = (Y1 - Y2) / (X1 - X2) - A * (X1 + X2);
     const f32 C = A * X1 * X2 + (X1 * Y2 - X2 * Y1) / (X1 - X2);
 
@@ -1016,32 +1108,34 @@ GameGardenGrid_RenderPlants(game_state* GameState, game_platform_state* Platform
                                                &TextureAsset->Texture.RendererTexture);
                     }
                 }
-
-                // NOTE(Traian): Render the plants that have the 'UseCustomRenderProcedure' configuration flag set to true.
-                switch (PlantEntity->Type)
+                else
                 {
-                    case PLANT_TYPE_WALLNUT:
+                    // NOTE(Traian): Render the plants that have the 'UseCustomRenderProcedure' configuration flag set to true.
+                    switch (PlantEntity->Type)
                     {
-                        const plant_entity_wallnut* Wallnut = &PlantEntity->Wallnut;
-                        game_asset_id TextureAssedID = GAME_ASSET_ID_NONE;
-                        switch (Wallnut->CrackIndex)
+                        case PLANT_TYPE_WALLNUT:
                         {
-                            case 0: { TextureAssedID = GAME_ASSET_ID_PLANT_WALLNUT_NORMAL; }    break;
-                            case 1: { TextureAssedID = GAME_ASSET_ID_PLANT_WALLNUT_CRACKED_1; } break;
-                            case 2: { TextureAssedID = GAME_ASSET_ID_PLANT_WALLNUT_CRACKED_2; } break;
-                        }
+                            const plant_entity_wallnut* Wallnut = &PlantEntity->Wallnut;
+                            game_asset_id TextureAssetID = GAME_ASSET_ID_NONE;
+                            switch (Wallnut->CrackIndex)
+                            {
+                                case 0: { TextureAssetID = GAME_ASSET_ID_PLANT_WALLNUT_NORMAL; }    break;
+                                case 1: { TextureAssetID = GAME_ASSET_ID_PLANT_WALLNUT_CRACKED_1; } break;
+                                case 2: { TextureAssetID = GAME_ASSET_ID_PLANT_WALLNUT_CRACKED_2; } break;
+                            }
 
-                        asset* TextureAsset = Asset_Get(&GameState->Assets, TextureAssedID);
-                        if (TextureAsset)
-                        {
-                            Renderer_PushPrimitive(&GameState->Renderer,
-                                                   Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
-                                                   Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                                   RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
-                                                   &TextureAsset->Texture.RendererTexture);   
+                            asset* TextureAsset = Asset_Get(&GameState->Assets, TextureAssetID);
+                            if (TextureAsset)
+                            {
+                                Renderer_PushPrimitive(&GameState->Renderer,
+                                                       Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
+                                                       Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
+                                                       RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
+                                                       &TextureAsset->Texture.RendererTexture);   
+                            }
                         }
+                        break;
                     }
-                    break;
                 }
             }
         }
@@ -1079,14 +1173,67 @@ GameGardenGrid_RenderZombies(game_state* GameState, game_platform_state* Platfor
                 const vec2 MinPoint = ZombieEntity->Position - (0.5F * RenderDimensions) + RenderOffset;
                 const vec2 MaxPoint = MinPoint + RenderDimensions;
 
-                asset* TextureAsset = Asset_Get(&GameState->Assets, ZombieConfig->AssetID);
-                if (TextureAsset)
+                if (!ZombieConfig->UseCustomRenderProcedure)
                 {
-                    Renderer_PushPrimitive(&GameState->Renderer,
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
-                                           Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
-                                           RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
-                                           &TextureAsset->Texture.RendererTexture);
+                    asset* TextureAsset = Asset_Get(&GameState->Assets, ZombieConfig->AssetID);
+                    if (TextureAsset)
+                    {
+                        Renderer_PushPrimitive(&GameState->Renderer,
+                                               Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
+                                               Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
+                                               RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
+                                               &TextureAsset->Texture.RendererTexture);
+                    }
+                }
+                else
+                {
+                    switch (ZombieEntity->Type)
+                    {
+                        case ZOMBIE_TYPE_BUCKETHEAD:
+                        {
+                            const zombie_entity_buckethead* Buckethead = &ZombieEntity->Buckethead;
+                            game_asset_id BucketTextureAssetID = GAME_ASSET_ID_NONE;
+                            switch (Buckethead->DamagedStageIndex)
+                            {
+                                case 0: { BucketTextureAssetID = GAME_ASSET_ID_ZOMBIE_BUCKET_DAMAGED_0; }   break;
+                                case 1: { BucketTextureAssetID = GAME_ASSET_ID_ZOMBIE_BUCKET_DAMAGED_1; }   break;
+                                case 2: { BucketTextureAssetID = GAME_ASSET_ID_ZOMBIE_BUCKET_DAMAGED_2; }   break;
+                                case 3: { BucketTextureAssetID = GAME_ASSET_ID_NONE; }                      break;
+                            }
+
+                            asset* ZombieTextureAsset = Asset_Get(&GameState->Assets, ZombieConfig->AssetID);
+                            if (ZombieTextureAsset)
+                            {
+                                Renderer_PushPrimitive(&GameState->Renderer,
+                                                       Game_TransformGamePointToNDC(&GameState->Camera, MinPoint),
+                                                       Game_TransformGamePointToNDC(&GameState->Camera, MaxPoint),
+                                                       RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
+                                                       &ZombieTextureAsset->Texture.RendererTexture);
+                                
+                            }
+
+                            if (BucketTextureAssetID != GAME_ASSET_ID_NONE)
+                            {
+                            asset* BucketTextureAsset = Asset_Get(&GameState->Assets, BucketTextureAssetID);
+                                if (BucketTextureAsset)
+                                {
+                                    const vec2 BucketDimensions = Vec2(ZOMBIE_BUCKETHEAD_BUCKET_DIMENSIONS_X,
+                                                                       ZOMBIE_BUCKETHEAD_BUCKET_DIMENSIONS_Y);
+                                    const vec2 BucketRenderOffset = Vec2(ZOMBIE_BUCKETHEAD_BUCKET_RENDER_OFFSET_X,
+                                                                         ZOMBIE_BUCKETHEAD_BUCKET_RENDER_OFFSET_Y);
+                                    const vec2 BucketMinPoint = ZombieEntity->Position + BucketRenderOffset - (0.5F * BucketDimensions);
+                                    const vec2 BucketMaxPoint = BucketMinPoint + BucketDimensions;
+
+                                    Renderer_PushPrimitive(&GameState->Renderer,
+                                                           Game_TransformGamePointToNDC(&GameState->Camera, BucketMinPoint),
+                                                           Game_TransformGamePointToNDC(&GameState->Camera, BucketMaxPoint),
+                                                           RenderZOffset, Color4(1.0F), Vec2(0.0F), Vec2(1.0F),
+                                                           &BucketTextureAsset->Texture.RendererTexture);
+                                }
+                            }
+                        }
+                        break;
+                    }
                 }
             }
         }

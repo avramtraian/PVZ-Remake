@@ -215,6 +215,14 @@ Rect2D_Intersect(rect2D A, rect2D B)
     return Result;
 }
 
+inline b8
+Rect2D_ContainsPoint(rect2D Rectangle, vec2 Point)
+{
+    const b8 Result = (Rectangle.Min.X <= Point.X && Point.X <= Rectangle.Max.X) &&
+                      (Rectangle.Min.Y <= Point.Y && Point.Y <= Rectangle.Max.Y);
+    return Result;
+}
+
 //====================================================================================================================//
 //------------------------------------------------------ COLORS ------------------------------------------------------//
 //====================================================================================================================//

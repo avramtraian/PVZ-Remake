@@ -46,8 +46,14 @@ enum plant_type : u16
 
 enum zombie_type : u16
 {
+#define PVZ_ENUMERATE_ZOMBIE_TYPES(X)       \
+    X(ZOMBIE_TYPE_NORMAL, Normal)           \
+    X(ZOMBIE_TYPE_BUCKETHEAD, Buckethead)
+
     ZOMBIE_TYPE_NONE = 0,
-    ZOMBIE_TYPE_NORMAL,
+#define _PVZ_ENUM_MEMBER(X, N) X,
+    PVZ_ENUMERATE_ZOMBIE_TYPES(_PVZ_ENUM_MEMBER)
+#undef _PVZ_ENUM_MEMBER
     ZOMBIE_TYPE_MAX_COUNT,
 };
 
@@ -164,6 +170,19 @@ struct zombie_entity_normal
     f32                                 AttackTimer;
 };
 
+struct zombie_entity_buckethead
+{
+    f32                                 Velocity;
+    f32                                 AttackDamage;
+    f32                                 AttackDelay;
+    f32                                 AttackTimer;
+    f32                                 MaxHealth;
+    f32                                 DamagedStage1HealthPercentage;
+    f32                                 DamagedStage2HealthPercentage;
+    f32                                 DamagedStage3HealthPercentage;
+    u32                                 DamagedStageIndex;
+};
+
 struct zombie_entity
 {
     // NOTE(Traian): All entity types must have the same 32-bit header, which contained the entity type (16-bit),
@@ -177,6 +196,7 @@ struct zombie_entity
     union
     {
         zombie_entity_normal            Normal;
+        zombie_entity_buckethead        Buckethead;
     };
 };
 
@@ -342,6 +362,7 @@ struct game_zombie_config
     vec2                                RenderScale;
     vec2                                RenderOffset;
     game_asset_id                       AssetID;
+    b8                                  UseCustomRenderProcedure;
 };
 
 struct game_projectile_config
@@ -571,6 +592,7 @@ Game_SetDefaultConfiguration(game_state* GameState)
         PlantConfig->RenderScale = Vec2(PLANT_##PLANT_NAME##_RENDER_SCALE_X, PLANT_##PLANT_NAME##_RENDER_SCALE_Y);      \
         PlantConfig->RenderOffset = Vec2(PLANT_##PLANT_NAME##_RENDER_OFFSET_X, PLANT_##PLANT_NAME##_RENDER_OFFSET_Y);   \
         PlantConfig->AssetID = AssetIDValue;                                                                            \
+        PlantConfig->UseCustomRenderProcedure = false;                                                                  \
     }
 
 #define CONFIGURE_DEFAULT_ZOMBIE(ZOMBIE_NAME, AssetIDValue)                                                                 \
@@ -582,6 +604,7 @@ Game_SetDefaultConfiguration(game_state* GameState)
         ZombieConfig->RenderScale = Vec2(ZOMBIE_##ZOMBIE_NAME##_RENDER_SCALE_X, ZOMBIE_##ZOMBIE_NAME##_RENDER_SCALE_Y);     \
         ZombieConfig->RenderOffset = Vec2(ZOMBIE_##ZOMBIE_NAME##_RENDER_OFFSET_X, ZOMBIE_##ZOMBIE_NAME##_RENDER_OFFSET_Y);  \
         ZombieConfig->AssetID = AssetIDValue;                                                                               \
+        ZombieConfig->UseCustomRenderProcedure = false;                                                                     \
     }
 
 #define CONFIGURE_DEFAULT_PROJECTILE(PROJECTILE_NAME, AssetIDValue)                             \
@@ -601,12 +624,17 @@ Game_SetDefaultConfiguration(game_state* GameState)
     CONFIGURE_DEFAULT_PLANT(TORCHWOOD, GAME_ASSET_ID_PLANT_TORCHWOOD);
     CONFIGURE_DEFAULT_PLANT(MELONPULT, GAME_ASSET_ID_PLANT_MELONPULT);
 
+    CONFIGURE_DEFAULT_PLANT(WALLNUT, GAME_ASSET_ID_PLANT_WALLNUT_NORMAL);
+    GameState->Config.Plants[PLANT_TYPE_WALLNUT].UseCustomRenderProcedure = true;
+
     CONFIGURE_DEFAULT_PROJECTILE(SUN, GAME_ASSET_ID_PROJECTILE_SUN);
     CONFIGURE_DEFAULT_PROJECTILE(PEA, GAME_ASSET_ID_PROJECTILE_PEA);
     CONFIGURE_DEFAULT_PROJECTILE(FIRE_PEA, GAME_ASSET_ID_PROJECTILE_FIRE_PEA);
     CONFIGURE_DEFAULT_PROJECTILE(MELON, GAME_ASSET_ID_PROJECTILE_MELON);
 
     CONFIGURE_DEFAULT_ZOMBIE(NORMAL, GAME_ASSET_ID_ZOMBIE_NORMAL);
+    CONFIGURE_DEFAULT_ZOMBIE(BUCKETHEAD, GAME_ASSET_ID_ZOMBIE_NORMAL);
+    GameState->Config.Zombies[ZOMBIE_TYPE_BUCKETHEAD].UseCustomRenderProcedure = true;
 
 #undef CONFIGURE_DEFAULT_PLANT
 #undef CONFIGURE_DEFAULT_ZOMBIE

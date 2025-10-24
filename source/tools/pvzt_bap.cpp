@@ -324,7 +324,7 @@ BAP_GenerateAssetPack(bap_asset_pack* AssetPack, const char* AssetRootDirectoryP
 {
     ZERO_STRUCT_POINTER(AssetPack);
 
-    AssetPack->TextureCount = 15;
+    AssetPack->TextureCount = 18;
     AssetPack->Textures = (bap_asset_texture*)malloc(AssetPack->TextureCount * sizeof(bap_asset_texture));
     ZERO_STRUCT_ARRAY(AssetPack->Textures, AssetPack->TextureCount);
     u32 CurrentTextureIndex = 0;
@@ -351,6 +351,9 @@ BAP_GenerateAssetPack(bap_asset_pack* AssetPack, const char* AssetRootDirectoryP
     BAP_ADD_TEXTURE("projectile_fire_pea.png", GAME_ASSET_ID_PROJECTILE_FIRE_PEA);
     BAP_ADD_TEXTURE("projectile_melon.png", GAME_ASSET_ID_PROJECTILE_MELON);
     BAP_ADD_TEXTURE("zombie_normal.png", GAME_ASSET_ID_ZOMBIE_NORMAL);
+    BAP_ADD_TEXTURE("zombie_bucket_damaged_0.png", GAME_ASSET_ID_ZOMBIE_BUCKET_DAMAGED_0);
+    BAP_ADD_TEXTURE("zombie_bucket_damaged_1.png", GAME_ASSET_ID_ZOMBIE_BUCKET_DAMAGED_1);
+    BAP_ADD_TEXTURE("zombie_bucket_damaged_2.png", GAME_ASSET_ID_ZOMBIE_BUCKET_DAMAGED_2);
     BAP_ADD_TEXTURE("ui_seed_packet.png", GAME_ASSET_ID_UI_SEED_PACKET);
     BAP_ADD_TEXTURE("ui_shovel.png", GAME_ASSET_ID_UI_SHOVEL);
 

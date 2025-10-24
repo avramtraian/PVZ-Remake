@@ -103,6 +103,24 @@
 #define ZOMBIE_NORMAL_ATTACK_DELAY                          (0.6F)
 #define ZOMBIE_NORMAL_ATTACK_DAMAGE                         (40.0)
 
+#define ZOMBIE_BUCKETHEAD_HEALTH                            (1300.0F)
+#define ZOMBIE_BUCKETHEAD_DIMENSIONS_X                      (ZOMBIE_NORMAL_DIMENSIONS_X)
+#define ZOMBIE_BUCKETHEAD_DIMENSIONS_Y                      (ZOMBIE_NORMAL_DIMENSIONS_Y)
+#define ZOMBIE_BUCKETHEAD_RENDER_SCALE_X                    (ZOMBIE_NORMAL_RENDER_SCALE_X)
+#define ZOMBIE_BUCKETHEAD_RENDER_SCALE_Y                    (ZOMBIE_NORMAL_RENDER_SCALE_Y)
+#define ZOMBIE_BUCKETHEAD_RENDER_OFFSET_X                   (ZOMBIE_NORMAL_RENDER_OFFSET_X)
+#define ZOMBIE_BUCKETHEAD_RENDER_OFFSET_Y                   (ZOMBIE_NORMAL_RENDER_OFFSET_Y)
+#define ZOMBIE_BUCKETHEAD_DAMAGED_STAGE_1_HEALTH_PERCENTAGE (0.7178)    // NOTE(Traian): The 3rd damaged state is equivalent to a normal zombie.
+#define ZOMBIE_BUCKETHEAD_DAMAGED_STAGE_2_HEALTH_PERCENTAGE (0.4358F)   // That's why these percentages have such weird values.
+#define ZOMBIE_BUCKETHEAD_DAMAGED_STAGE_3_HEALTH_PERCENTAGE (0.1538F)   // They are derived from 200/1300 (HP).
+#define ZOMBIE_BUCKETHEAD_VELOCITY                          (ZOMBIE_NORMAL_VELOCITY)
+#define ZOMBIE_BUCKETHEAD_ATTACK_DELAY                      (ZOMBIE_NORMAL_ATTACK_DELAY)
+#define ZOMBIE_BUCKETHEAD_ATTACK_DAMAGE                     (ZOMBIE_NORMAL_ATTACK_DAMAGE)
+#define ZOMBIE_BUCKETHEAD_BUCKET_DIMENSIONS_X               (0.5F)
+#define ZOMBIE_BUCKETHEAD_BUCKET_DIMENSIONS_Y               (0.54F)
+#define ZOMBIE_BUCKETHEAD_BUCKET_RENDER_OFFSET_X            (-0.18F)
+#define ZOMBIE_BUCKETHEAD_BUCKET_RENDER_OFFSET_Y            (0.82F)
+
 #define PROJECTILE_SUN_RENDER_SCALE_X                       (1.3F)
 #define PROJECTILE_SUN_RENDER_SCALE_Y                       (1.3F)
 #define PROJECTILE_SUN_RENDER_OFFSET_X                      (0.0F)
