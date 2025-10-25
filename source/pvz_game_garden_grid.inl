@@ -18,13 +18,13 @@ GameGardenGrid_Initialize(game_state* GameState)
                                            GardenGrid->CellCountX * GardenGrid->CellCountY);
 
     // NOTE(Traian): Allocate the zombie entities buffer.
-    GardenGrid->MaxZombieCount = 128;
+    GardenGrid->MaxZombieCount = 512;
     GardenGrid->CurrentZombieCount = 0;
     GardenGrid->ZombieEntities = PUSH_ARRAY(GameState->PermanentArena, zombie_entity,
                                             GardenGrid->MaxZombieCount);
 
     // NOTE(Traian): Allocate the projectile entities buffer.
-    GardenGrid->MaxProjectileCount = 256;
+    GardenGrid->MaxProjectileCount = 1024;
     GardenGrid->CurrentProjectileCount = 0;
     GardenGrid->ProjectileEntities = PUSH_ARRAY(GameState->PermanentArena, projectile_entity,
                                                 GardenGrid->MaxProjectileCount);

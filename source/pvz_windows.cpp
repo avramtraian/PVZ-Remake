@@ -655,11 +655,11 @@ WinMain(HINSTANCE Instance, HINSTANCE PreviousInstance, LPSTR CommandLine, INT S
 
         // NOTE(Traian): Allocate the game memory.
         memory_arena PermanentArena = {};
-        PermanentArena.ByteCount = MEGABYTES(1);
+        PermanentArena.ByteCount = MEGABYTES(6);
         PermanentArena.MemoryBlock = VirtualAlloc(NULL, PermanentArena.ByteCount,
                                                   MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
         memory_arena TransientArena = {};
-        TransientArena.ByteCount = MEGABYTES(64);
+        TransientArena.ByteCount = MEGABYTES(32);
         TransientArena.MemoryBlock = VirtualAlloc(NULL, TransientArena.ByteCount,
                                                   MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
         platform_game_memory GameMemory = {};

@@ -15,7 +15,7 @@ GamePlantSelector_Initialize(game_state* GameState)
     PlantSelector->SeedPacketSpace = 0.03F;
     PlantSelector->SeedPacketAspectRatio = 1.0F / 1.4F;
 
-    PlantSelector->SeedPacketCount = 8;
+    PlantSelector->SeedPacketCount = 6;
     PlantSelector->SeedPackets = PUSH_ARRAY(GameState->PermanentArena, game_seed_packet,
                                             PlantSelector->SeedPacketCount);
     for (u32 SeedPacketIndex = 0; SeedPacketIndex < PlantSelector->SeedPacketCount; ++SeedPacketIndex)

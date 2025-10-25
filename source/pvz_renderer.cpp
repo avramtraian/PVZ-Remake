@@ -290,7 +290,7 @@ Renderer_Initialize(renderer* Renderer, memory_arena* Arena)
 {
     ZERO_STRUCT_POINTER(Renderer);
     Renderer->ClusterCount = 12;
-    Renderer->MaxPrimitiveCount = 1024;
+    Renderer->MaxPrimitiveCount = 8129;
     Renderer->MaxTextureSlotCount = 64;
 
     Renderer->Clusters      = PUSH_ARRAY(Arena, renderer_cluster,           Renderer->ClusterCount);
@@ -300,7 +300,7 @@ Renderer_Initialize(renderer* Renderer, memory_arena* Arena)
     for (u32 ClusterIndex = 0; ClusterIndex < Renderer->ClusterCount; ++ClusterIndex)
     {
         renderer_cluster* Cluster = Renderer->Clusters + ClusterIndex;
-        Cluster->MaxPrimitiveCount = 128;
+        Cluster->MaxPrimitiveCount = 1024;
         Cluster->Primitives = PUSH_ARRAY(Arena, renderer_primitive, Cluster->MaxPrimitiveCount);
     }
 }
