@@ -266,10 +266,9 @@ struct game_garden_grid
     u32                                 CurrentProjectileCount;
     projectile_entity*                  ProjectileEntities;
 
-    f32                                 SpawnZombieMinDelay;
-    f32                                 SpawnZombieMaxDelay;
-    f32                                 SpawnNextZombieDelay;
-    f32                                 SpawnNextZombieTimer;
+    f32                                 ZombieSpawnPoints[ZOMBIE_TYPE_MAX_COUNT];
+    f32                                 ZombieSpawnPointRates[ZOMBIE_TYPE_MAX_COUNT];
+    f32                                 ElapsedTime;
 
     f32                                 SpawnNaturalSunMinDelay;
     f32                                 SpawnNaturalSunMaxDelay;
@@ -358,6 +357,7 @@ struct game_plant_config
 struct game_zombie_config
 {
     f32                                 Health;
+    f32                                 SpawnCost;
     vec2                                Dimensions;
     vec2                                RenderScale;
     vec2                                RenderOffset;
@@ -599,6 +599,7 @@ Game_SetDefaultConfiguration(game_state* GameState)
     {                                                                                                                       \
         const zombie_type ZombieType = ZOMBIE_TYPE_##ZOMBIE_NAME;                                                           \
         game_zombie_config* ZombieConfig = &Config->Zombies[ZombieType];                                                    \
+        ZombieConfig->SpawnCost = ZOMBIE_##ZOMBIE_NAME##_SPAWN_COST;                                                        \
         ZombieConfig->Health = ZOMBIE_##ZOMBIE_NAME##_HEALTH;                                                               \
         ZombieConfig->Dimensions = Vec2(ZOMBIE_##ZOMBIE_NAME##_DIMENSIONS_X, ZOMBIE_##ZOMBIE_NAME##_DIMENSIONS_Y);          \
         ZombieConfig->RenderScale = Vec2(ZOMBIE_##ZOMBIE_NAME##_RENDER_SCALE_X, ZOMBIE_##ZOMBIE_NAME##_RENDER_SCALE_Y);     \

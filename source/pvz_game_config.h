@@ -93,6 +93,7 @@
 #define PLANT_WALLNUT_CRACK_STAGE_2_HEALTH_PERCENTAGE       (0.33F)
 
 #define ZOMBIE_NORMAL_HEALTH                                (200.0F)
+#define ZOMBIE_NORMAL_SPAWN_COST                            (100.0F)
 #define ZOMBIE_NORMAL_DIMENSIONS_X                          (0.8F)
 #define ZOMBIE_NORMAL_DIMENSIONS_Y                          (1.28F)
 #define ZOMBIE_NORMAL_RENDER_SCALE_X                        (1.0F)
@@ -104,6 +105,7 @@
 #define ZOMBIE_NORMAL_ATTACK_DAMAGE                         (40.0)
 
 #define ZOMBIE_BUCKETHEAD_HEALTH                            (1300.0F)
+#define ZOMBIE_BUCKETHEAD_SPAWN_COST                        (1000.0F)
 #define ZOMBIE_BUCKETHEAD_DIMENSIONS_X                      (ZOMBIE_NORMAL_DIMENSIONS_X)
 #define ZOMBIE_BUCKETHEAD_DIMENSIONS_Y                      (ZOMBIE_NORMAL_DIMENSIONS_Y)
 #define ZOMBIE_BUCKETHEAD_RENDER_SCALE_X                    (ZOMBIE_NORMAL_RENDER_SCALE_X)

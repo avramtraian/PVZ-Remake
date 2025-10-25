@@ -29,9 +29,6 @@ GameGardenGrid_Initialize(game_state* GameState)
     GardenGrid->ProjectileEntities = PUSH_ARRAY(GameState->PermanentArena, projectile_entity,
                                                 GardenGrid->MaxProjectileCount);
 
-    GardenGrid->SpawnZombieMinDelay = 1.0F;
-    GardenGrid->SpawnZombieMaxDelay = 3.0F;
-
     GardenGrid->SpawnNaturalSunMinDelay = NATURAL_SUN_SPAWN_MIN_DELAY;
     GardenGrid->SpawnNaturalSunMaxDelay = NATURAL_SUN_SPAWN_MAX_DELAY;
     GardenGrid->SpawnNextNaturalSunDelay = 0.5F * (GardenGrid->SpawnNaturalSunMinDelay + GardenGrid->SpawnNaturalSunMaxDelay);
@@ -542,6 +539,37 @@ GameGardenGrid_SpawnZombie(game_state* GameState, zombie_type ZombieType, u32 Ce
     }
 }
 
+internal f32
+GameGardenGrid_CalculateZombieSpawnPointRate(f32 ElapsedTime)
+{
+    f32 SpawnPointRate = ElapsedTime * 0.2F;
+    return SpawnPointRate;
+}
+
+internal void
+GameGardenGrid_UpdateZombieSpawner(game_state* GameState, game_platform_state* PlatformState, f32 DeltaTime)
+{
+    game_garden_grid* GardenGrid = &GameState->GardenGrid;
+    GardenGrid->ElapsedTime += DeltaTime;
+
+    for (u16 ZombieType = ZOMBIE_TYPE_NONE + 1; ZombieType < ZOMBIE_TYPE_MAX_COUNT; ++ZombieType)
+    {
+        const game_zombie_config* ZombieConfig = &GameState->Config.Zombies[ZombieType];
+        while (GardenGrid->ZombieSpawnPoints[ZombieType] >= ZombieConfig->SpawnCost)
+        {
+            // NOTE(Traian): Chose a random garden lane where to spawn the zombie.
+            const u32 SpawnCellIndexY = Random_RangeU32(&GardenGrid->RandomSeries, 0, GardenGrid->CellCountY - 1);
+            const f32 SpawnPositionX = GameState->Camera.UnitCountX + 0.5F;
+
+            GameGardenGrid_SpawnZombie(GameState, (zombie_type)ZombieType, SpawnCellIndexY, SpawnPositionX);
+            GardenGrid->ZombieSpawnPoints[ZombieType] -= ZombieConfig->SpawnCost;
+        }
+
+        GardenGrid->ZombieSpawnPoints[ZombieType] += GardenGrid->ZombieSpawnPointRates[ZombieType] * DeltaTime;
+        GardenGrid->ZombieSpawnPointRates[ZombieType] = GameGardenGrid_CalculateZombieSpawnPointRate(GardenGrid->ElapsedTime);
+    }
+}
+
 internal b8
 GameGardenGrid_ExcuteZombieBiteAttack(game_state* GameState, f32 DeltaTime, zombie_entity* ZombieEntity,
                                       f32* InOutAttackTimer, f32 AttackDelay, f32 AttackDamage)
@@ -671,28 +699,7 @@ GameGardenGrid_UpdateZombies(game_state* GameState, game_platform_state* Platfor
     // NOTE(Traian): Spawn new zombies.
     //
 
-    if (GardenGrid->SpawnNextZombieTimer >= GardenGrid->SpawnNextZombieDelay)
-    {
-        GardenGrid->SpawnNextZombieTimer = 0.0F;
-        GardenGrid->SpawnNextZombieDelay = Random_RangeF32(&GardenGrid->RandomSeries,
-                                                           GardenGrid->SpawnZombieMinDelay,
-                                                           GardenGrid->SpawnZombieMaxDelay);
-        if (GardenGrid->CellCountY > 0)
-        {
-            const f32 SpawnPositionX = GameState->Camera.UnitCountX + 0.5F;
-            const u32 SpawnCellIndexY = Random_RangeU32(&GardenGrid->RandomSeries, 0, GardenGrid->CellCountY - 1);
-            // const u32 ZombieType = Random_RangeU32(&GardenGrid->RandomSeries,
-            //                                        ZOMBIE_TYPE_NONE + 1,
-            //                                        ZOMBIE_TYPE_MAX_COUNT - 1);
-            const u32 ZombieType = ZOMBIE_TYPE_BUCKETHEAD;
-
-            GameGardenGrid_SpawnZombie(GameState, (zombie_type)ZombieType, SpawnCellIndexY, SpawnPositionX);
-        }
-    }
-    else
-    {
-        GardenGrid->SpawnNextZombieTimer += DeltaTime;
-    }
+    GameGardenGrid_UpdateZombieSpawner(GameState, PlatformState, DeltaTime);
 
     //
     // NOTE(Traian): Update zombie entities.
